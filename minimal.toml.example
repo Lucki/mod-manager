@@ -1,0 +1,9 @@
+active = "set1"
+path = "/path/to/game"
+
+["set1"]
+mods = [
+    "mod1",
+    "mod2",
+    "mod3",
+]

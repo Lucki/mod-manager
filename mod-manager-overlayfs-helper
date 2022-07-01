@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# mostly based on https://github.com/tkashkin/GameHub by Anatoliy Kashkin, GPL3 (https://github.com/tkashkin/GameHub/blob/master/COPYING)
+
+if [[ $EUID -ne 0 ]]; then
+    echo "This script requires root permissions"
+    exit 1
+fi
+
+ACTION="$1"
+OVERLAY_ID="$2"
+
+case "$ACTION" in
+mount)
+    MOUNT_OPTIONS="$3"
+    TARGET="$4"
+    mount -t overlay "$OVERLAY_ID" -o "$MOUNT_OPTIONS" "$TARGET"
+    ;;
+
+umount)
+    umount "$OVERLAY_ID"
+    ;;
+
+cleanworkdir)
+    WORKDIR="$2"
+
+    # Let's make really sure we are in a "workdir" which contains a "index" and a "work" folder
+
+    if [[ $(basename "$WORKDIR") != "workdir" ]]; then
+        exit 3
+    fi
+
+    if [[ ! -d "$WORKDIR" ]]; then
+        exit 3
+    fi
+
+    if [[ ! -d "$WORKDIR/index" ]] && [[ ! -d "$WORKDIR/work" ]]; then
+        # Already clean
+        exit 0
+    fi
+
+    if [[ ! -d "$WORKDIR/index" ]] || [[ ! -d "$WORKDIR/work" ]]; then
+        # Something's off
+        exit 3
+    fi
+
+    # At this point we're hopefully only possibly in a overlayfs workdir
+
+    # If they aren't empty then they're still mounted or still in the process of being unmounted
+    rmdir "$WORKDIR/index" || exit 4
+    rmdir "$WORKDIR/work" || exit 4
+    ;;
+
+*)
+    echo "This script only allows to (u)mount overlays and clean their workdir"
+    exit 2
+    ;;
+esac

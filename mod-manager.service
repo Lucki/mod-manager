@@ -1,0 +1,11 @@
+[Unit]
+Description="Simple mod manager using OverlayFS"
+
+[Service]
+type=oneshot
+RemainAfterExit=yes
+ExecStart=mod-manager activate
+ExecStop=mod-manager deactivate
+
+[Install]
+WantedBy=default.target

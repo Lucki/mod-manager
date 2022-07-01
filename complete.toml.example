@@ -1,0 +1,46 @@
+# required
+active = "set1"
+path = "/mnt/big data/my game"
+
+# optional
+# "game ID" is the basename of this toml configuration file
+mod_root_path = "/mnt/big data/mods" # default: "$XDG_DATA_HOME/mod-manager/game ID"
+writable = true # This game needs write access to the game folder
+
+# #### Basic mod set example ####
+
+["set1"] # Required - referenced in "active"
+writable = true # Optional - this mod set requires write access to the game folder
+mods = [
+    # upper mods are prioritized over lower ones
+    "mod1", # This folder has to exist in the "mod_root_path"
+    "mod2", # This folder has to exist in the "mod_root_path"
+    "mod3", # This folder has to exist in the "mod_root_path"
+]
+
+# #### Advanced mod set example ####
+
+# sets can be nested - beware you don't create an infinite loop!
+["everything"]
+mods = [
+    "mod1", # This folder has to exist in the "mod_root_path"
+    "Visual Enhancements", # ID of a set which is defined below
+    "Quality of Life", # ID of a set which is defined below
+]
+
+["Quality of Life"]
+mods = [
+    # I'm tired of picking up everything - let it go into my inventory automagically:
+    "AutoLoot", # This folder has to exist in the "mod_root_path"
+    # I hate those stupid minigames which prevent me playing the real deal
+    # Skip them:
+    "Skip minigames", # This folder has to exist in the "mod_root_path"
+]
+
+["Visual Enhancements"]
+mods = [
+    # Provides textures with a higher quality:
+    "4k Textures", # This folder has to exist in the "mod_root_path"
+    # I like walking on sunshine:
+    "Sunny weather", # This folder has to exist in the "mod_root_path"
+]
