@@ -319,6 +319,8 @@ for game_config_path in games:
         try:
             subprocess.call(args.external_command)
         finally:
+            # Wait some time to allow programs to finalize
+            sleep(2)
             game.deactivate()
         continue
 
