@@ -110,7 +110,7 @@ class Game():
 
         return Game.State.NORMAL
 
-    def activate(self, writable=False, persistent_name="persistent"):
+    def activate(self, writable=False, persistent_name=None):
         self.__state = self.__current_state()
         assert (self.__state is not Game.State.INVALID)
 
@@ -126,14 +126,27 @@ class Game():
         os.mkdir(self.__path)
 
         if writable or self.__writable:
+            if persistent_name is None:
+                persistent_name = f"{self.__config['active']}_persistent"
+
             upperdir = os.path.join(self.xdg_cache, persistent_name)
             workdir = os.path.join(self.xdg_cache, "workdir")
+            indexdir = os.path.join(workdir, "index")
+            work = os.path.join(workdir, "work")
 
             if not os.path.exists(upperdir):
                 os.mkdir(upperdir)
 
             if not os.path.exists(workdir):
                 os.mkdir(workdir)
+
+            # For safety the helper script will fail if one of the two doesn't exist
+            # Create the missing one
+            if not os.path.exists(indexdir) or not os.path.exists(work):
+                if not os.path.exists(indexdir):
+                    os.mkdir(indexdir)
+                if not os.path.exists(work):
+                    os.mkdir(work)
 
             subprocess.check_call(
                 ["pkexec",
