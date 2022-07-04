@@ -52,7 +52,7 @@ mods = [
 
 # Command that will run after mounting and before the main game
 [[pre_command]]
-wait_for_exit = false # Continue after this command exits
+wait_for_exit = false # Don't wait for exiting, this will run in parallel to the game
 delay = 60 # Delay following stuff by seconds
 command = [
     "wine",
@@ -76,7 +76,7 @@ MY_ENV = "variable2"
 
 # Special command referenced above
 ["my_special_command"]
-wait_for_exit = false # Continue after this command exits
+wait_for_exit = false # Don't wait for exiting, this will run in parallel to the game
 delay = 60 # Delay following stuff by seconds
 command = [
     "wine",

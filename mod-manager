@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
 from enum import Enum
+import errno
 from pathlib import Path
+from signal import Signals
 import subprocess
 import sys
 from time import sleep
@@ -203,7 +205,14 @@ class Game():
             pids = os.listdir(self.__xdg_runtime)
 
             for pid in pids:
-                os.kill(pid)
+                try:
+                    os.kill(pid, Signals.SIGTERM)
+                    # TODO: Timeout to SIGKILL?
+                except OSError as err:
+                    if err.errno == errno.ESRCH:
+                        pass
+
+                os.remove(os.path.join(self.__xdg_runtime, pid))
 
         self.__state = self.__current_state()
         assert (self.__state is not Game.State.INVALID)
@@ -316,6 +325,8 @@ class Game():
         for process in self.__pre_runs:
             # create pid file
             open(os.path.join(self.__xdg_runtime, process.pid), 'a').close()
+            # FIXME: Handle forks/children?
+            # Dump/Load whole subprocess object? pickle.dump()
 
 
 argparser = argparse.ArgumentParser(
