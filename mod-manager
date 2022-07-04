@@ -241,7 +241,7 @@ class Game():
         if "run_pre_command" in set:
             self.run_pre_commands = set["run_pre_command"] or self.run_pre_commands
 
-        if "command" in set:
+        if "command" in set and set["command"] not in self.__pre_run_commands:
             self.__pre_run_commands.append(set["command"])
 
         assert("mods" in set)
