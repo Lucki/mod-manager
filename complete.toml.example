@@ -1,3 +1,4 @@
+# https://toml.io/en/latest
 # required
 active = "set1"
 path = "/mnt/big data/my game"
@@ -6,6 +7,7 @@ path = "/mnt/big data/my game"
 # "game ID" is the basename of this toml configuration file
 mod_root_path = "/mnt/big data/mods" # default: "$XDG_DATA_HOME/mod-manager/game ID"
 writable = true # This game needs write access to the game folder
+run_pre_command = true # The pre_commands should always run
 
 # #### Basic mod set example ####
 
@@ -38,9 +40,34 @@ mods = [
 ]
 
 ["Visual Enhancements"]
+run_pre_command = true # This mod set should run pre_commands
 mods = [
     # Provides textures with a higher quality:
     "4k Textures", # This folder has to exist in the "mod_root_path"
     # I like walking on sunshine:
     "Sunny weather", # This folder has to exist in the "mod_root_path"
 ]
+
+# Command that will run after mounting and before the main game
+[[pre_command]]
+wait_for_exit = false # Continue after this command exits
+delay = 60 # Delay following stuff by seconds
+command = [
+    "wine",
+    "my-pre-command.exe",
+    "--yes",
+]
+[pre_command.environment]
+WINEPREFIX = "/path/to/prefix"
+MY_ENV = "variable"
+
+# A second command is also neccessary
+[[pre_command]]
+command = [
+    "bottles-cli",
+    "run",
+    "--bottle='my-bottle'",
+    "--program='my-program'",
+]
+[pre_command.environment]
+MY_ENV = "variable2"
