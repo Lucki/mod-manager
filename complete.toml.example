@@ -38,6 +38,8 @@ mods = [
     # Skip them:
     "Skip minigames", # This folder has to exist in the "mod_root_path"
 ]
+# This set needs a special command to run
+command = "my_special_command" # Defined below
 
 ["Visual Enhancements"]
 run_pre_command = true # This mod set should run pre_commands
@@ -71,3 +73,16 @@ command = [
 ]
 [pre_command.environment]
 MY_ENV = "variable2"
+
+# Special command referenced above
+["my_special_command"]
+wait_for_exit = false # Continue after this command exits
+delay = 60 # Delay following stuff by seconds
+command = [
+    "wine",
+    "my-pre-command.exe",
+    "--yes",
+]
+["my_special_command".environment]
+WINEPREFIX = "/path/to/prefix"
+MY_ENV = "variable"

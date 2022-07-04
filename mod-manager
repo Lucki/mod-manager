@@ -60,6 +60,7 @@ class Game():
             self.run_pre_commands = self.__config["run_pre_command"]
 
         self.__pre_runs = []
+        self.__pre_run_commands = []
 
         if ignore_overlays:
             self.__mount_options = f"x-gvfs-hide,comment=x-gvfs-hide,lowerdir={self.__moved_path}"
@@ -240,6 +241,9 @@ class Game():
         if "run_pre_command" in set:
             self.run_pre_commands = set["run_pre_command"] or self.run_pre_commands
 
+        if "command" in set:
+            self.__pre_run_commands.append(set["command"])
+
         assert("mods" in set)
 
         for overlay in set["mods"]:
@@ -265,38 +269,45 @@ class Game():
     def __run_pre_commands(self):
         assert("pre_command" in self.__config)
 
-        for pre_command in self.__config["pre_command"]:
-            assert("command" in pre_command)
+        def prepare_and_execute(command):
+            assert("command" in command)
 
             wait = True
             delay = None
 
-            if "wait_for_exit" in pre_command:
-                wait = pre_command["wait_for_exit"]
+            if "wait_for_exit" in command:
+                wait = command["wait_for_exit"]
 
-            if "delay" in pre_command:
-                delay = pre_command["delay"]
+            if "delay" in command:
+                delay = command["delay"]
 
             env = os.environ.copy()
-            if "environment" in pre_command:
-                for variable in pre_command["environment"]:
-                    env[variable] = pre_command["environment"][variable]
+            if "environment" in command:
+                for variable in command["environment"]:
+                    env[variable] = command["environment"][variable]
 
             if wait:
                 subprocess.run(
-                    pre_command["command"],
+                    command["command"],
                     env=env,
                     check=True
                 )
             else:
                 self.__pre_runs.append(
                     subprocess.Popen(
-                        pre_command["command"],
+                        command["command"],
                         env=env
                     ))
 
             if delay is not None:
                 sleep(delay)
+
+        for pre_command in self.__config["pre_command"]:
+            prepare_and_execute(pre_command)
+
+        for special_command in self.__pre_run_commands:
+            assert(special_command in self.__config)
+            prepare_and_execute(self.__config[special_command])
 
         os.makedirs(self.__xdg_runtime, exist_ok=True)
         for process in self.__pre_runs:
