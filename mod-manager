@@ -26,6 +26,10 @@ class Game():
         self.xdg_cache = BaseDirectory.save_cache_path(
             os.path.join(program_name, self.__id)
         )
+
+        self.__xdg_runtime = os.path.join(
+            BaseDirectory.get_runtime_dir(), program_name, self.__id)
+
         self.__config_file = os.path.join(xdg_config, f"{self.__id}.toml")
         assert(os.path.exists(self.__config_file))
 
@@ -50,6 +54,12 @@ class Game():
         if "writable" in self.__config:
             self.__writable = self.__config["writable"]
 
+        self.run_pre_commands = False
+        if "run_pre_command" in self.__config:
+            self.run_pre_commands = self.__config["run_pre_command"]
+
+        self.__pre_runs = []
+
         if ignore_overlays:
             self.__mount_options = f"x-gvfs-hide,comment=x-gvfs-hide,lowerdir={self.__moved_path}"
         else:
@@ -64,11 +74,8 @@ class Game():
 
             assert(self.__config["active"] in self.__config)
 
-            self.__mount_options, writable = self.__append_overlays(
+            self.__mount_options = self.__append_overlays(
                 self.__config[self.__config["active"]])
-
-            if writable or self.__writable:
-                self.__writable = True
 
             self.__mount_options = f"x-gvfs-hide,comment=x-gvfs-hide,lowerdir={self.__mount_options}:{self.__moved_path}"
 
@@ -175,7 +182,21 @@ class Game():
         if self.__cwd != os.getcwd():
             os.chdir(self.__path)
 
+        if not os.path.ismount():
+            # Emergency exit
+            print("Mounting somehow failed?", file=sys.stderr)
+            sys.exit(1)
+
+        self.__run_pre_commands()
+
     def deactivate(self):
+        # Stop pids that were started continuously
+        if os.path.exists(self.__xdg_runtime):
+            pids = os.listdir(self.__xdg_runtime)
+
+            for pid in pids:
+                os.kill(pid)
+
         self.__state = self.__current_state()
         assert (self.__state is not Game.State.INVALID)
 
@@ -206,19 +227,18 @@ class Game():
         self.__state = self.__current_state()
 
     def __append_overlays(self, set, options_string=""):
-        writable = False
+        if "writable" in set:
+            self.__writable = set["writable"] or self.__writable
 
-        if "writable" in set and set["writable"]:
-            writable = True
+        if "run_pre_command" in set:
+            self.run_pre_commands = set["run_pre_command"] or self.run_pre_commands
 
         assert("mods" in set)
 
         for overlay in set["mods"]:
             if overlay in self.__config:
-                options_string, writable_nested = self.__append_overlays(self.__config[overlay],
-                                                                         options_string)
-                if writable or writable_nested:
-                    writable = True
+                options_string = self.__append_overlays(self.__config[overlay],
+                                                        options_string)
                 continue
 
             overlay_path = os.path.join(self.mod_root_path, overlay)
@@ -231,9 +251,50 @@ class Game():
             options_string = f"{options_string}:{overlay_path}"
 
         if options_string[0] == ':':
-            return (options_string[1:len(options_string)], writable)
+            return options_string[1:len(options_string)]
 
-        return (options_string, writable)
+        return options_string
+
+    def __run_pre_commands(self):
+        assert("pre_command" in self.__config)
+
+        for pre_command in self.__config["pre_command"]:
+            assert("command" in pre_command)
+
+            wait = True
+            delay = None
+
+            if "wait_for_exit" in pre_command:
+                wait = pre_command["wait_for_exit"]
+
+            if "delay" in pre_command:
+                delay = pre_command["delay"]
+
+            env = os.environ.copy()
+            if "environment" in pre_command:
+                for variable in pre_command["environment"]:
+                    env[variable] = pre_command["environment"][variable]
+
+            if wait:
+                subprocess.run(
+                    pre_command["command"],
+                    env=env,
+                    check=True
+                )
+            else:
+                self.__pre_runs.append(
+                    subprocess.Popen(
+                        pre_command["command"],
+                        env=env
+                    ))
+
+            if delay is not None:
+                sleep(delay)
+
+        os.makedirs(self.__xdg_runtime, exist_ok=True)
+        for process in self.__pre_runs:
+            # create pid file
+            open(os.path.join(self.__xdg_runtime, process.pid), 'a').close()
 
 
 argparser = argparse.ArgumentParser(
