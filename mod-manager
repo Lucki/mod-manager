@@ -409,14 +409,14 @@ for game_config_path in games:
             continue
 
         game.activate(writable=True,
-                      persistent_name="clean_persistent")
+                      persistent_name="persistent_setup")
 
         input(
             f"Make the required changes to the main folder.\nPress Enter when done setting up - you'll find the changes in '{new_mod_path}' afterwards.")
 
         game.deactivate()
 
-        persistent_dir = os.path.join(game.xdg_cache, "clean_persistent")
+        persistent_dir = os.path.join(game.xdg_cache, "persistent_setup")
         os.makedirs(game.mod_root_path, exist_ok=True)
         os.rename(persistent_dir, new_mod_path)
 
