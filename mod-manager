@@ -148,11 +148,12 @@ class Game():
                 if not os.path.exists(work):
                     os.mkdir(work)
 
-            subprocess.check_call(
+            subprocess.run(
                 ["pkexec",
                     "mod-manager-overlayfs-helper",
                     "cleanworkdir",
-                    workdir]
+                    workdir],
+                check=True
             )
 
             self.__mount_options = f"{self.__mount_options},upperdir={upperdir},workdir={workdir}"
@@ -161,13 +162,14 @@ class Game():
         if self.__cwd == self.__path:
             os.chdir(os.path.dirname(self.__path))
 
-        subprocess.check_call(
+        subprocess.run(
             ["pkexec",
              "mod-manager-overlayfs-helper",
              "mount",
              self.__id,
              self.__mount_options,
-             self.__path]
+             self.__path],
+            check=True
         )
 
         if self.__cwd != os.getcwd():
@@ -185,11 +187,12 @@ class Game():
             if self.__cwd == self.__path:
                 os.chdir(os.path.dirname(self.__path))
 
-            subprocess.check_call(
+            subprocess.run(
                 ["pkexec",
                  "mod-manager-overlayfs-helper",
                  "umount",
-                 self.__id]
+                 self.__id],
+                check=True
             )
 
             if self.__cwd != os.getcwd():
