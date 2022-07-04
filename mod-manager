@@ -55,9 +55,9 @@ class Game():
         if "writable" in self.__config:
             self.__writable = self.__config["writable"]
 
-        self.run_pre_commands = False
+        self.__run_pre_commands = False
         if "run_pre_command" in self.__config:
-            self.run_pre_commands = self.__config["run_pre_command"]
+            self.__run_pre_commands = self.__config["run_pre_command"]
 
         self.__pre_runs = []
         self.__pre_run_commands = []
@@ -82,6 +82,7 @@ class Game():
             self.__mount_options = f"x-gvfs-hide,comment=x-gvfs-hide,lowerdir={self.__mount_options}:{self.__moved_path}"
 
         self.__cwd = Path.cwd()
+        self.__change_cwd = False
         if self.__cwd.is_relative_to(self.__path):
             self.__change_cwd = True
 
@@ -188,12 +189,13 @@ class Game():
             # FIXME: change to Path.absolute() with python 3.11
             os.chdir(self.__cwd.resolve())
 
-        if not os.path.ismount():
+        if not os.path.ismount(self.__path):
             # Emergency exit
             print("Mounting somehow failed?", file=sys.stderr)
             sys.exit(1)
 
-        self.__run_pre_commands()
+        if self.__run_pre_commands or len(self.__pre_run_commands) > 0:
+            self.__run_commands()
 
     def deactivate(self):
         # Stop pids that were started continuously
@@ -239,7 +241,7 @@ class Game():
             self.__writable = set["writable"] or self.__writable
 
         if "run_pre_command" in set:
-            self.run_pre_commands = set["run_pre_command"] or self.run_pre_commands
+            self.__run_pre_commands = set["run_pre_command"] or self.__run_pre_commands
 
         if "command" in set and set["command"] not in self.__pre_run_commands:
             self.__pre_run_commands.append(set["command"])
@@ -266,8 +268,9 @@ class Game():
 
         return options_string
 
-    def __run_pre_commands(self):
-        assert("pre_command" in self.__config)
+    def __run_commands(self):
+        if "pre_command" not in self.__config:
+            self.__config["pre_command"] = []
 
         def prepare_and_execute(command):
             assert("command" in command)
