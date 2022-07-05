@@ -206,7 +206,7 @@ class Game():
 
             for pid in pids:
                 try:
-                    os.kill(pid, Signals.SIGTERM)
+                    os.kill(int(pid), Signals.SIGTERM)
                     # TODO: Timeout to SIGKILL?
                 except OSError as err:
                     if err.errno == errno.ESRCH:
@@ -324,7 +324,7 @@ class Game():
         os.makedirs(self.__xdg_runtime, exist_ok=True)
         for process in self.__pre_runs:
             # create pid file
-            open(os.path.join(self.__xdg_runtime, process.pid), 'a').close()
+            open(os.path.join(self.__xdg_runtime, str(process.pid)), 'a').close()
             # FIXME: Handle forks/children?
             # Dump/Load whole subprocess object? pickle.dump()
 
