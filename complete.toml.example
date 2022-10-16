@@ -1,17 +1,17 @@
 # https://toml.io/en/latest
 # required
-active = "set1"
 path = "/mnt/big data/my game"
 
 # optional
-# "game ID" is the basename of this toml configuration file
-mod_root_path = "/mnt/big data/mods" # default: "$XDG_DATA_HOME/mod-manager/game ID"
+# "<gameID>" is the basename of this toml configuration file
+active = "set1" # default to this set if no command line argument is given
+mod_root_path = "/mnt/big data/mods" # default: "$XDG_DATA_HOME/mod-manager/<gameID>"
 writable = true # This game needs write access to the game folder
 run_pre_command = true # The pre_commands should always run
 
 # #### Basic mod set example ####
 
-["set1"] # Required - referenced in "active"
+["set1"] # Required - referenced in "active" above
 writable = true # Optional - this mod set requires write access to the game folder
 mods = [
     # upper mods are prioritized over lower ones
@@ -50,7 +50,7 @@ mods = [
     "Sunny weather", # This folder has to exist in the "mod_root_path"
 ]
 
-# Command that will run after mounting and before the main game
+# Commands that will run after mounting and before the main game
 [[pre_command]]
 wait_for_exit = false # Don't wait for exiting, this will run in parallel to the game
 delay = 60 # Delay following stuff by seconds

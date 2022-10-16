@@ -51,7 +51,7 @@ cleanworkdir)
     ;;
 
 *)
-    echo "This script only allows to (u)mount overlays and clean their workdir"
+    echo "This script only allows to (un)mount overlays and clean their workdir"
     exit 2
     ;;
 esac
