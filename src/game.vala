@@ -217,6 +217,8 @@ namespace ModManager {
                 try {
                     game_cache.make_directory_with_parents();
                 } catch (IOError.EXISTS e) {}
+
+                // The working directory (workdir) needs to be an empty directory on the same filesystem as the upper directory.
                 var upperdir = game_cache.get_child(persistent_name);
                 var workdir = game_cache.get_child("workdir");
                 var index = workdir.get_child("index");
@@ -246,6 +248,7 @@ namespace ModManager {
                                              "pkexec",
                                              "mod-manager-overlayfs-helper",
                                              "cleanworkdir",
+                                             id,
                                              workdir.get_path()
                 );
 

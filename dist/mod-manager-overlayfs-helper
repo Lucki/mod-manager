@@ -21,9 +21,18 @@ umount)
     ;;
 
 cleanworkdir)
-    WORKDIR="$2"
+    WORKDIR="$3"
 
-    # Let's make really sure we are in a "workdir" which contains a "index" and a "work" folder
+    # Check if OVERLAY_ID is still mounted
+    if findmnt "$OVERLAY_ID" --types overlay 1>/dev/null; then
+        exit 5
+    fi
+
+    # Let's make really sure we are in a "…/OVERLAY_ID/workdir" which only contains a "index" and a "work" folder
+
+    if [[ $(basename "$(dirname "$WORKDIR")") != "$OVERLAY_ID" ]]; then
+        exit 3
+    fi
 
     if [[ $(basename "$WORKDIR") != "workdir" ]]; then
         exit 3
@@ -43,11 +52,20 @@ cleanworkdir)
         exit 3
     fi
 
+    # workdir
+    # workdir/work
+    # workdir/index
+    # = 3
+    if [[ "$(find "$WORKDIR" -maxdepth 1 | wc -l)" != "3" ]]; then
+        # Something's off
+        exit 3
+    fi
+
     # At this point we're hopefully only possibly in a overlayfs workdir
 
-    # If they aren't empty then they're still mounted or still in the process of being unmounted
-    rmdir "$WORKDIR/index" || exit 4
-    rmdir "$WORKDIR/work" || exit 4
+    # Sometimes they're not empty after unmounting so we can't use rmdir
+    rm -r "$WORKDIR/index" || exit 4
+    rm -r "$WORKDIR/work" || exit 4
     ;;
 
 *)
