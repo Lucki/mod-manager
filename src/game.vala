@@ -146,6 +146,8 @@ namespace ModManager {
                 _ignore_overlays = true;
             }
 
+            debug(@"Ignoring Overlays: $(ignore_overlays)");
+
             if (!ignore_overlays) {
                 if (!(active_set in game_config)) {
                     throw new ConfigurationError.KEY_MISSING(@"Set \"$(active_set)\" missing in configuration for \"$(this.id)\".");
@@ -256,7 +258,10 @@ namespace ModManager {
                     throw new StateError.INVALID("Cleanworkdir failed");
                 }
 
-                tmp_string = @"$(tmp_string),upperdir=$((!) upperdir.get_path()),workdir=$((!) workdir.get_path())";
+                // Mods can change but we will get ESTALE for some configurations
+                // Force: index=off,metacopy=off
+                // https://bbs.archlinux.org/viewtopic.php?pid=2031633#p2031633
+                tmp_string = @"$(tmp_string),upperdir=$((!) upperdir.get_path()),workdir=$((!) workdir.get_path()),index=off,metacopy=off";
             } else if (ignore_overlays) {
                 // Creating an immutable OverlayFS with a single folder.
                 // OverlayFS can't mount a single folder so we're creating an empty dummy to assist us.
