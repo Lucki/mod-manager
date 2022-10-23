@@ -60,8 +60,6 @@ namespace ModManager {
                     continue;
                 }
 
-                mods.add((!) tmp_string);
-
                 Toml.Table? tmp_table;
                 if (game_config.try_get_table((!) tmp_string, out tmp_table)) {
                     if (id in (!) root_mod_set) {
@@ -70,9 +68,11 @@ namespace ModManager {
 
                     var sub_set = new ModSet((!) tmp_table, this.game_config, root_path, root_mod_set);
                     mod_sets.set((!) tmp_string, sub_set);
+                    mods.add((!) tmp_string);
 
                     continue;
                 }
+                mods.add((!) tmp_string);
 
                 var mod_path = root_path.get_child((!) tmp_string);
                 if (!mod_path.query_exists()) {
@@ -98,6 +98,7 @@ namespace ModManager {
         }
 
         internal void get_mount_string(ref string mount_string) {
+            // debug(@"mount_string: $(mount_string)");
             foreach (var mod in mods) {
                 if (mod in mod_sets) {
                     var tmp_set = mod_sets.get(mod);
@@ -143,7 +144,7 @@ namespace ModManager {
                 return true;
             }
 
-            foreach (var mod_set in mod_sets.get_keys()) {
+            foreach (var mod_set in mod_sets.get_values()) {
                 if (id in mod_set) {
                     return true;
                 }
