@@ -9,7 +9,7 @@ namespace ModManager {
 
         private static Action? action = null;
         private static string? game_id = null;
-        private static File? game_path = null;
+        private static string? game_path = null;
         private static string? game_set = null;
         private static string? mod_id = null;
         private static string[] ? command = null;

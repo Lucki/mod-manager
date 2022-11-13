@@ -77,7 +77,7 @@ namespace ModManager {
         /**
          * Creates new config if path is given and config non existent
          */
-        public Game(string id, string? set_override = null, File? game_path = null) throws ConfigurationError, StateError, FileError, Error {
+        public Game(string id, string? set_override = null, string? game_path = null) throws ConfigurationError, StateError, FileError, Error {
             this.id = id;
 
             current_working_directory = Environment.get_current_dir();
@@ -89,16 +89,16 @@ namespace ModManager {
 
             game_mod_root = Utils.xdg_data_home.get_child(this.id);
 
-            if (game_path != null && !config_file.query_exists()) {
+            if (!config_file.query_exists() && game_path != null && game_path.length > 0) {
                 info("Creating new empty configuration file \"%s\".", config_file.get_path());
 
                 try {
                     Utils.xdg_config_home.make_directory_with_parents();
                 } catch (IOError.EXISTS e) {}
 
-                var iostream = config_file.open_readwrite();
-                iostream.output_stream.write(@"path = \"$(game_path.get_path())\"".data);
-                iostream.close();
+                var outputstream = config_file.create(FileCreateFlags.NONE);
+                var datastream = new DataOutputStream(outputstream);
+                datastream.put_string(@"path = \"$(game_path)\"");
             } else if (game_path != null) {
                 warning("Config file \"%s\" already exists.", config_file.get_path());
             }
@@ -108,6 +108,11 @@ namespace ModManager {
             string tmp_string;
             if (!game_config.try_get_string("path", out tmp_string)) {
                 throw new ConfigurationError.KEY_MISSING(@"\"path\" is missing for \"$(this.id)\".");
+            }
+
+            // trim trailing '/' from path
+            if (tmp_string[tmp_string.length - 1] == '/') {
+                tmp_string = tmp_string[0 : tmp_string.length - 1];
             }
 
             path = File.new_for_path(tmp_string);
@@ -407,6 +412,10 @@ namespace ModManager {
         internal void setup(string mod_id) throws ConfigurationError, StateError, FileError, Error {
             var new_mod_path = game_mod_root.get_child(mod_id);
             assert(new_mod_path.get_path() != null);
+
+            try {
+                game_mod_root.make_directory_with_parents();
+            } catch (IOError.EXISTS e) {}
 
             if (new_mod_path.query_exists()) {
                 debug("Mod \"%s\" already exists.\n", mod_id);
