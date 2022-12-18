@@ -42,11 +42,11 @@ namespace ModManager {
 
             Toml.Array? tmp_array;
             if (!config.try_get_array("mods", out tmp_array)) {
-                throw new ConfigurationError.KEY_MISSING("Missing \"mods\" section for configuration for game \"$(id)\".");
+                throw new ConfigurationError.KEY_MISSING(@"Missing \"mods\" section for configuration for game \"$(id)\".");
             }
 
             if (((!) tmp_array).empty) {
-                throw new ConfigurationError.ARRAY_EMPTY("Array for \"mods\" in section is empty for game \"$(id)\".");
+                throw new ConfigurationError.ARRAY_EMPTY(@"Array for \"mods\" in section is empty for game \"$(id)\".");
             }
 
             if (((!) tmp_array).array_type != 'v' && ((!) tmp_array).value_type != 's') {
