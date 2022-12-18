@@ -7,6 +7,7 @@ This allows other programs to easily access modded games exactly like unmodded.
 
 Mod sets can be defined in the configuration file and sets are temporarily changeable with `--set`.
 Sets can have any number of mods and can even be nested.
+An empty `""` set name does not apply any mod files.
 
 There are a two ways to handle mods:
 * Run `mod-manager activate` on login and `mod-manager deactivate` on logout
