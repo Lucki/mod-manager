@@ -1,0 +1,58 @@
+#compdef mod-manager
+# zsh completion for mod-manager
+# shellcheck shell=zsh
+# shellcheck disable=2034,2154
+
+__mod-manager() {
+    local XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.local/share}"
+    local context state state_descr line
+    typeset -A opt_args
+
+    _arguments -s -S ':action:->action' ':game id:->game' ':args:->args'\
+        {-h,--help}'[show help message and exit]' \
+        '--set[The mod set to activate, overwrites the activated set in the config file]:set:->set' \
+        '--writable[Ensure the merged directories are writable. Written changes can be found in the cache folder]'
+
+    case "${state}" in
+    action)
+        _values action \
+            'activate[Activate a mod by mounting the OverlayFS inplace]' \
+            'deactivate[Deactivate an already activated mod by unmounting the OverlayFS]' \
+            'wrap[Wrap an external command in between an activation and deactivation]' \
+            'setup[Setup and collect changes for a new mod by making changes to the game]'
+        ;;
+    game)
+        local available=()
+
+        for config in "$XDG_CONFIG_HOME"/mod-manager/*.toml; do
+            available+=("$(basename "$config")")
+        done
+
+        # shellcheck disable=2068
+        _values game ${available[@]%.toml}
+        ;;
+    set)
+        local config="$XDG_CONFIG_HOME/mod-manager/${words[3]//\\ / }.toml"
+
+        if [ -f "$config" ]; then
+            # https://unix.stackexchange.com/a/13472
+            # shellcheck disable=2046
+            _values set $(grep -oP "^\s?\[\"?'?\K.*?(?='?\"?\])" "${config//\"/}")
+        else
+            _message 'Mod set name'
+        fi
+        ;;
+    args)
+        # https://unix.stackexchange.com/a/411331
+        if (($words[(Ie)wrap])); then
+            _values seperator '--'
+        fi
+
+        if (($words[(I)setup])); then
+            _message 'New mod name'
+        fi
+        ;;
+    esac
+}
+
+__mod-manager

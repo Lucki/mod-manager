@@ -10,3 +10,7 @@ install_data('mod-manager.policy',
 install_data('mod-manager.service',
     install_dir: 'lib/systemd/user',
 )
+
+install_data('_mod-manager',
+    install_dir: 'share/zsh/site-functions',
+)
