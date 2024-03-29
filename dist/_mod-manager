@@ -1,58 +1,117 @@
 #compdef mod-manager
 # zsh completion for mod-manager
-# shellcheck shell=zsh
-# shellcheck disable=2034,2154
+# shellcheck shell=bash
+# shellcheck disable=SC2034,SC2154
 
 __mod-manager() {
-    local XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.local/share}"
-    local context state state_descr line
-    typeset -A opt_args
+    local -a commands
+    commands=(
+        'activate:Activate a game or mod'
+        'deactivate:Deactivate a game or mod'
+        'wrap:Wrap a command around a game'
+        'setup:Set up a new game or mod'
+        'help:Print help message'
+    )
 
-    _arguments -s -S ':action:->action' ':game id:->game' ':args:->args'\
-        {-h,--help}'[show help message and exit]' \
-        '--set[The mod set to activate, overwrites the activated set in the config file]:set:->set' \
-        '--writable[Ensure the merged directories are writable. Written changes can be found in the cache folder]'
+    _arguments \
+        '-V[Version]' \
+        '1: :->command' \
+        '*:: :->args'
 
-    case "${state}" in
-    action)
-        _values action \
-            'activate[Activate a mod by mounting the OverlayFS inplace]' \
-            'deactivate[Deactivate an already activated mod by unmounting the OverlayFS]' \
-            'wrap[Wrap an external command in between an activation and deactivation]' \
-            'setup[Setup and collect changes for a new mod by making changes to the game]'
-        ;;
-    game)
-        local available=()
-
-        for config in "$XDG_CONFIG_HOME"/mod-manager/*.toml; do
-            available+=("$(basename "$config")")
-        done
-
-        # shellcheck disable=2068
-        _values game ${available[@]%.toml}
-        ;;
-    set)
-        local config="$XDG_CONFIG_HOME/mod-manager/${words[3]//\\ / }.toml"
-
-        if [ -f "$config" ]; then
-            # https://unix.stackexchange.com/a/13472
-            # shellcheck disable=2046
-            _values set $(grep -oP "^\s?\[\"?'?\K.*?(?='?\"?\])" "${config//\"/}")
-        else
-            _message 'Mod set name'
-        fi
+    case $state in
+    command)
+        _describe 'command' commands
         ;;
     args)
-        # https://unix.stackexchange.com/a/411331
-        if (($words[(Ie)wrap])); then
-            _values seperator '--'
-        fi
-
-        if (($words[(I)setup])); then
-            _message 'New mod name'
-        fi
+        case ${words[1]} in
+        activate)
+            __mod-manager-activate
+            ;;
+        deactivate)
+            __mod-manager-deactivate
+            ;;
+        wrap)
+            __mod-manager-wrap
+            ;;
+        setup)
+            __mod-manager-setup
+            ;;
+        help)
+            _message "command options"
+            ;;
+        esac
         ;;
     esac
+}
+
+__mod-manager-activate() {
+    _arguments \
+        {-h,--help}'[show help message and exit]' \
+        '--set=::Override the "active_set" of the config file:__mod-manager-set-identifier' \
+        '--writable[Mount with write access]' \
+        '1: :__mod-manager-game-identifier'
+}
+
+__mod-manager-deactivate() {
+    _arguments \
+        {-h,--help}'[show help message and exit]' \
+        '1: :__mod-manager-game-identifier'
+}
+
+__mod-manager-wrap() {
+    _arguments -S \
+        {-h,--help}'[show help message and exit]' \
+        '--set=::Override the "active_set" of the config file:__mod-manager-set-identifier' \
+        '--writable[Mount with write access]' \
+        '1: :__mod-manager-game-identifier' \
+        '2: :__mod-manager-command-separator' \
+        '*:: :_complete' # FIXME: Doesn't work, should complete fresh here again.
+}
+
+__mod-manager-setup() {
+    _arguments \
+        {-h,--help}'[show help message and exit]' \
+        '--path=::Creates a new config file for the game in PATH:_path_files' \
+        '--set=::Override the "active_set" of the config file:__mod-manager-set-identifier' \
+        '1: :__mod-manager-game-identifier' \
+        '2: :__mod-manager-mod-identifier'
+}
+
+__mod-manager-game-identifier() {
+    local XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+    local available=()
+
+    for config in "$XDG_CONFIG_HOME"/mod-manager/*.toml; do
+        available+=("$(basename "$config")")
+    done
+
+    # shellcheck disable=2068
+    _values game ${available[@]%.toml}
+}
+
+__mod-manager-mod-identifier() {
+    _message 'New mod identifier'
+}
+
+__mod-manager-set-identifier() {
+    local XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+    local config="$XDG_CONFIG_HOME/mod-manager/${words[2]//\\ / }.toml"
+
+    if [ -f "$config" ]; then
+        # Use grep to find lines containing "[table_name]" and "mods"
+        # shellcheck disable=SC2046
+        _values 'set name' $(grep -E '^\[.*\]|mods' "${config//\"/}" | \
+            # Filter out lines containing comments or empty lines
+            grep -vE '^\s*#|^\s*$' | \
+            # Use awk to extract table names containing "mods" and remove surrounding brackets
+            awk '/\[.*\]/{gsub(/\[|\]|"/,""); table=$1} /mods/{print table}')
+    else
+        _message 'Mod set name'
+    fi
+}
+
+__mod-manager-command-separator() {
+    compadd -- '--'
 }
 
 __mod-manager

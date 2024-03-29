@@ -1,0 +1,163 @@
+# Config file spec
+# https://toml.io/en/latest
+
+############################## required ##############################
+
+# The absolute path to the game folder, the original game files without any mods.
+path = "/mnt/big data/my game"
+
+############################## optional ##############################
+# In the following lines, "<gameID>" is the basename of this toml configuration file (<gameID>.toml)
+
+# Defines the default mod set to activate.
+# Can be overridden from the command line with --set <modID>
+# An empty or missing value results into a a game without any mods.
+# The same is applies when called with --set ""
+# See below for the "[set1]" table example.
+active = "set1"
+
+# Defines the search location for mods.
+# default: "$XDG_DATA_HOME/mod-manager/<gameID>"
+mod_root_path = "/mnt/big data/mods"
+
+# Sets if the game file folder can be written into.
+# If this is true, the changes made will be saved in "$XDG_CACHE_HOME/mod-manager/<gameID>/<modID>_persistent"
+# Defaults to false.
+writable = true
+
+# This sets whether or not the "pre_command" table should be started after applying any mod set.
+# See below for "[[pre_command]]" table examples.
+# Defaults to false.
+run_pre_command = true
+
+######################################################################
+#                  Basic mod set example                             #
+######################################################################
+
+# Set identifier
+# Required, because referenced in "active" above
+["set1"]
+
+    # Sets if the game file folder can be written into.
+    # If this is true, the changes made will be saved in "$XDG_CACHE_HOME/mod-manager/<gameID>/<modID>_persistent"
+    # Defaults to false.
+    writable = true
+
+    # Mods array containing all mods, that are applied with this mod set.
+    # Each mod is expected to be found in the "mod_root_path", see above.
+    # Mods, that are lower in the listing below, are less prioritized
+    # Example: When two mods include the same file, only the upper one will be seen by the game
+    mods = [
+        "mod1", # This folder has to exist: "$XDG_DATA_HOME/mod-manager/<gameID>/mod1"
+        "mod2", # This folder has to exist: "$XDG_DATA_HOME/mod-manager/<gameID>/mod2"
+        "mod3", # This folder has to exist: "$XDG_DATA_HOME/mod-manager/<gameID>/mod3"
+    ]
+
+######################################################################
+#                  Advanced mod set example                          #
+######################################################################
+
+# Set identifier
+["everything"]
+
+    # Mods array containing all mods, that are applied with this mod set.
+    # Each mod is expected to be found in the "mod_root_path", see above.
+    # Mods, that are lower in the listing below, are less prioritized
+    # Example: When two mods include the same file, only the upper one will be seen by the game
+    # Sets can be nested - beware you don't create an infinite loop!
+    mods = [
+        "mod1",                # This folder has to exist: "$XDG_DATA_HOME/mod-manager/<gameID>/mod1"
+        "Visual Enhancements", # ID of a set which is defined below as ["Visual Enhancements"]
+        "mod2",                # This folder has to exist: "$XDG_DATA_HOME/mod-manager/<gameID>/mod2"
+    ]
+
+# Set identifier
+["Visual Enhancements"]
+
+    # Defines that the [[pre_commands]] should be run.
+    # Identical to the global option above, but only applies when this mod set is in use.
+    # Defaults to false
+    run_pre_command = true
+
+    # Defines a custom command for this mod set. See below for the ["my_special_command"] example.
+    command = "my_special_command"
+
+    # Mods array containing all mods, that are applied with this mod set.
+    # Each mod is expected to be found in the "mod_root_path", see above.
+    # Mods, that are lower in the listing below, are less prioritized
+    # Example: When two mods include the same file, only the upper one will be seen by the game
+    # Sets can be nested - beware you don't create an infinite loop!
+    mods = [
+        "4k Textures",   # This folder has to exist: "$XDG_DATA_HOME/mod-manager/<gameID>/4k Textures"
+        "Sunny weather", # This folder has to exist: "$XDG_DATA_HOME/mod-manager/<gameID>/Sunny weather"
+    ]
+
+# An array of pre_commands, can appear multiple times.
+# Defines commands that will run after applying the mod, but only if any mod set or the global option has "run_pre_command" set to true
+[[pre_command]]
+
+    # Sets if the command should be waited for, before continuing
+    # Defaults to true
+    wait_for_exit = false
+
+    # If there should be waiting time after this command, before continuing to the next.
+    # Defaults to 0
+    delay_after = 60
+
+    # The actual command to use as an array of strings.
+    # Shell variables like "~" or "$XDG_DATA_HOME" aren't available here.
+    command = [
+        "wine",
+        "my-pre-command.exe",
+        "--path",
+        "/asd/asd/asd",
+    ]
+
+    # Additional environment variables for the command as a sub table in the form of:
+    # VARIABLE = "value"
+    [pre_command.environment]
+        WINEPREFIX = "/path/to/prefix"
+        MY_ENV = "variable"
+
+# An array of pre_commands, can appear multiple times.
+# Defines commands that will run after applying the mod, but only if any mod set or the global option has "run_pre_command" set to true
+[[pre_command]]
+
+    # The actual command to use as an array of strings.
+    # Shell variables like "~" or "$XDG_DATA_HOME" aren't available here.
+    command = [
+        "bottles-cli",
+        "run",
+        "--bottle='my-bottle'",
+        "--program='my-program'",
+    ]
+
+    # Additional environment variables for the command as a sub table in the form of:
+    # VARIABLE = "value"
+    [pre_command.environment]
+        MY_ENV = "variable2"
+
+# A single command, which has to be referenced previously, see above.
+["my_special_command"]
+
+    # Sets if the command should be waited for, before continuing
+    # Defaults to true
+    wait_for_exit = false
+
+    # If there should be waiting time after this command, before continuing to the next.
+    # Defaults to 0
+    delay_after = 60
+
+    # The actual command to use as an array of strings.
+    # Shell variables like "~" or "$XDG_DATA_HOME" aren't available here.
+    command = [
+        "wine",
+        "my-pre-command.exe",
+        "--yes",
+    ]
+
+    # Additional environment variables for the command as a sub table in the form of:
+    # VARIABLE = "value"
+    ["my_special_command".environment]
+        WINEPREFIX = "/path/to/prefix"
+        MY_ENV = "variable"

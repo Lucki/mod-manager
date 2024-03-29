@@ -1,0 +1,16 @@
+[package]
+name = "mod-manager"
+version = "0.1.0"
+edition = "2021"
+
+# [lib]
+# # https://github.com/rust-lang/rust/issues/43987
+# crate-type = ["rlib", "cdylib"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+toml = "*"
+xdg = "*"
+rustix = { version = "*", features = ["process"] }
+clap = { version = "4.0", features = ["derive"] }
