@@ -1,3 +1,4 @@
+use std::env;
 use std::{path::PathBuf, vec};
 use clap::Parser;
 use xdg::BaseDirectories;
@@ -42,22 +43,11 @@ enum Action {
         game: Option<String>,
     },
 
-    /// Wrap an external command in between an activation and deactivation
-    #[clap(name = "wrap")]
-    Wrap {
-        /// Identifier matching the config file.
+    /// Edit or create a configuration file for a game with $EDITOR
+    #[clap(name = "edit")]
+    Edit {
+        /// Identifier matching the config file. Can be a new identifier.
         game: String,
-
-        /// Command to wrap around to.
-        command: Vec<String>,
-
-        /// Override the "active_set" of the config file.
-        #[clap(long = "set")]
-        set: Option<String>,
-
-        /// Mount with write access.
-        #[clap(long = "writable")]
-        writable: bool,
     },
 
     /// Setup and collect changes for a new mod by making changes to the game
@@ -77,6 +67,24 @@ enum Action {
         /// Override the "active_set" of the config file.
         #[clap(long = "set")]
         set: Option<String>,
+    },
+
+    /// Wrap an external command in between an activation and deactivation
+    #[clap(name = "wrap")]
+    Wrap {
+        /// Identifier matching the config file.
+        game: String,
+
+        /// Command to wrap around to.
+        command: Vec<String>,
+
+        /// Override the "active_set" of the config file.
+        #[clap(long = "set")]
+        set: Option<String>,
+
+        /// Mount with write access.
+        #[clap(long = "writable")]
+        writable: bool,
     },
 }
 
@@ -163,24 +171,25 @@ fn main() {
                 }
             }
         },
-        Action::Wrap { game: game_id, command, set, writable } => {
-            if command.is_empty() {
-                panic!("Missing command for wrapping game");
-            }
+        Action::Edit { game } => {
+            let mut arguments: Vec<String> = vec![];
 
-            let game = Game::from_config(game_id, set).unwrap();
-            match game.wrap(ExternalCommand::new("wrap_command".to_string(), command, Some(true), None), writable) {
-                Ok(()) => (),
-                Err(error) => {
-                    println!("Failed wrapping game overlay '{}': {}", game.id, error);
-                    match game.deactivate() {
-                        Ok(()) => (),
-                        Err(error) => {
-                            println!("Failed deactivating game overlay '{}': {}", game.id, error);
-                        }
-                    }
-                }
-            }
+            let editor = match env::var("EDITOR") {
+                Ok(value) => value,
+                Err(_) => "vi".to_owned(),
+            };
+
+            arguments.push(editor);
+            arguments.push(xdg_dirs
+                .place_config_file(format!("{}.toml", game))
+                .expect("Unable to place config file.")
+                .to_str()
+                .expect("Failed converting config path to string.")
+                .to_owned());
+
+            ExternalCommand::new("editor".to_owned(), arguments, Some(true), None)
+                .run()
+                .unwrap();
         },
         Action::Setup { game: game_id, mod_id, path: game_path, set } => {
             let game = match game_path {
@@ -192,6 +201,25 @@ fn main() {
                 Ok(()) => (),
                 Err(error) => {
                     println!("Failed setup game overlay '{}': {}", game.id, error);
+                    match game.deactivate() {
+                        Ok(()) => (),
+                        Err(error) => {
+                            println!("Failed deactivating game overlay '{}': {}", game.id, error);
+                        }
+                    }
+                }
+            }
+        },
+        Action::Wrap { game: game_id, command, set, writable } => {
+            if command.is_empty() {
+                panic!("Missing command for wrapping game");
+            }
+
+            let game = Game::from_config(game_id, set).unwrap();
+            match game.wrap(ExternalCommand::new("wrap_command".to_string(), command, Some(true), None), writable) {
+                Ok(()) => (),
+                Err(error) => {
+                    println!("Failed wrapping game overlay '{}': {}", game.id, error);
                     match game.deactivate() {
                         Ok(()) => (),
                         Err(error) => {

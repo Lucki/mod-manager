@@ -8,8 +8,9 @@ __mod-manager() {
     commands=(
         'activate:Activate a game or mod'
         'deactivate:Deactivate a game or mod'
-        'wrap:Wrap a command around a game'
+        'edit:Edit or create a config file'
         'setup:Set up a new game or mod'
+        'wrap:Wrap a command around a game'
         'help:Print help message'
     )
 
@@ -19,25 +20,28 @@ __mod-manager() {
         '*:: :->args'
 
     case $state in
-    command)
-        _describe 'command' commands
-        ;;
-    args)
+        command)
+            _describe 'command' commands
+            ;;
+        args)
         case ${words[1]} in
-        activate)
-            __mod-manager-activate
+            activate)
+                __mod-manager-activate
             ;;
-        deactivate)
-            __mod-manager-deactivate
+            deactivate)
+                __mod-manager-deactivate
             ;;
-        wrap)
-            __mod-manager-wrap
+            edit)
+                __mod-manager-edit
             ;;
-        setup)
-            __mod-manager-setup
+            setup)
+                __mod-manager-setup
             ;;
-        help)
-            _message "command options"
+            wrap)
+                __mod-manager-wrap
+            ;;
+            help)
+                _message "command options"
             ;;
         esac
         ;;
@@ -56,16 +60,16 @@ __mod-manager-deactivate() {
     _arguments \
         {-h,--help}'[show help message and exit]' \
         '1: :__mod-manager-game-identifier'
+
+    _message 'New game identifier'
 }
 
-__mod-manager-wrap() {
-    _arguments -S \
+__mod-manager-edit() {
+    _arguments \
         {-h,--help}'[show help message and exit]' \
-        '--set=::Override the "active_set" of the config file:__mod-manager-set-identifier' \
-        '--writable[Mount with write access]' \
-        '1: :__mod-manager-game-identifier' \
-        '2: :__mod-manager-command-separator' \
-        '*:: :_complete' # FIXME: Doesn't work, should complete fresh here again.
+        '1: :__mod-manager-game-identifier'
+
+    _message "New game identifier"
 }
 
 __mod-manager-setup() {
@@ -77,6 +81,16 @@ __mod-manager-setup() {
         '2: :__mod-manager-mod-identifier'
 }
 
+__mod-manager-wrap() {
+    _arguments -S \
+        {-h,--help}'[show help message and exit]' \
+        '--set=::Override the "active_set" of the config file:__mod-manager-set-identifier' \
+        '--writable[Mount with write access]' \
+        '1: :__mod-manager-game-identifier' \
+        '2: :__mod-manager-command-separator'
+        # '*:: :_complete' # FIXME: Doesn't work, should complete fresh here again.
+}
+
 __mod-manager-game-identifier() {
     local XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
     local available=()
@@ -85,7 +99,7 @@ __mod-manager-game-identifier() {
         available+=("$(basename "$config")")
     done
 
-    # shellcheck disable=2068
+    # shellcheck disable=SC2068
     _values game ${available[@]%.toml}
 }
 

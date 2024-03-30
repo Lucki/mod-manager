@@ -59,8 +59,9 @@ Usage: mod-manager <COMMAND>
 Commands:
   activate    Activate a mod by mounting the OverlayFS inplace
   deactivate  Deactivate an already activated mod by unmounting the OverlayFS
-  wrap        Wrap an external command in between an activation and deactivation
+  edit        Edit or create a configuration file for a game with $EDITOR
   setup       Setup and collect changes for a new mod by making changes to the game
+  wrap        Wrap an external command in between an activation and deactivation
   help        Print this message or the help of the given subcommand(s)
 
 Options:
@@ -97,21 +98,18 @@ Options:
   -h, --help  Print help
 ~~~
 </details>
-<details><summary>Wrap</summary>
+<details><summary>Edit</summary>
 
 ~~~
-Wrap an external command in between an activation and deactivation
+Edit or create a configuration file for a game with $EDITOR
 
-Usage: mod-manager wrap [OPTIONS] <GAME> -- [COMMAND]...
+Usage: mod-manager edit <GAME>
 
 Arguments:
-  <GAME>        Identifier matching the config file
-  [COMMAND]...  Command to wrap around to
+  <GAME>  Identifier matching the config file. Can be a new identifier if PATH is also available
 
 Options:
-      --set <SET>  Override the "active_set" of the config file
-      --writable   Mount with write access
-  -h, --help       Print help
+  -h, --help  Print help
 ~~~
 </details>
 <details><summary>Setup</summary>
