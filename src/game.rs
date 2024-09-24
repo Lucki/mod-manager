@@ -93,18 +93,20 @@ impl Game {
                 .or_else(|error| Err(format!("Could not create moved_path for game '{}': {}", id, error)))?;
 
         let mod_root_path = match config.get("mod_root_path") {
-            Some(path) => PathBuf::from_str(path
-                .as_str()
-                .ok_or(format!("Expected string for field 'mod_root_path' for game '{}'", id))?)
-                .or_else(|error| Err(format!("Could not get 'mod_root_path' for game '{}': {}", id, error)))?
-                .canonicalize()
-                .or_else(|error| Err(format!("Unable to get absolute mod root path for game '{}': {}", id, error)))?,
+            Some(path) => {
+                let path = PathBuf::from_str(path
+                    .as_str()
+                    .ok_or(format!("Expected string for field 'mod_root_path' for game '{}'", id))?)
+                    .or_else(|error| Err(format!("Could not get 'mod_root_path' for game '{}': {}", id, error)))?
+                    .canonicalize()
+                    .or_else(|error| Err(format!("Unable to get absolute mod root path for game '{}': {}", id, error)))?;
+                if !path.exists() {
+                    return Err(format!("'mod_root_path' is not an existing directory for game '{}': {}", id, path.display()));
+                }
+                path
+            },
             None => xdg_dirs.get_data_file(&id),
         };
-
-        if !mod_root_path.exists() {
-            return Err(format!("'mod_root_path' is not an existing directory for game '{}': {}", id, mod_root_path.display()));
-        }
 
         let writable = match config.get("writable") {
             Some(value) => value
