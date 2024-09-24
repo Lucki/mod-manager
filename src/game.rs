@@ -398,9 +398,16 @@ impl Game {
 
         self.deactivate()?;
 
-        match fs::rename(&cache_path, &new_mod_path) {
-            Ok(_) => println!("Folder moved successfully"),
-            Err(e) => println!("Error moving folder: {}", e),
+        match fs::copy(&cache_path, &new_mod_path) {
+            Ok(_) => {
+                println!("Folder copied successfully");
+
+                match fs::remove_dir_all(&cache_path) {
+                    Ok(_) => println!("Temporary folder removed successfully"),
+                    Err(e) => println!("Error removing temporary folder: {}", e),
+                }
+            },
+            Err(e) => println!("Error copying folder: {}", e),
         }
 
         println!("Your mod files are in '{}'. To apply the mod, add '{}' into a mod set for '{}'.", new_mod_path.display(), new_mod_id, self.id);
