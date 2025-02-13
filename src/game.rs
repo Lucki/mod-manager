@@ -161,7 +161,7 @@ impl Game {
             Some(tree) => {
                 let mut s = "".to_owned();
                 tree.get_mount_string(&mut s);
-                let m = moved_path.to_str().ok_or(format!("Failed to convert '{}' to a string", moved_path.display()))?;
+                let m = moved_path.to_str().ok_or(format!("Failed to convert '{}' to a string", moved_path.display()))?.replace(":", r#"\:"#);
 
                 if s == "" {
                     format!("x-gvfs-hide,comment=x-gvfs-hide,lowerdir={}", m)
@@ -169,7 +169,7 @@ impl Game {
                     format!("x-gvfs-hide,comment=x-gvfs-hide,lowerdir={}:{}", s, m)
                 }
             },
-            None => format!("x-gvfs-hide,comment=x-gvfs-hide,lowerdir={}", moved_path.to_str().ok_or(format!("Failed to convert '{}' to a string", moved_path.display()))?),
+            None => format!("x-gvfs-hide,comment=x-gvfs-hide,lowerdir={}", moved_path.to_str().ok_or(format!("Failed to convert '{}' to a string", moved_path.display()))?.replace(":", r#"\:"#)),
         };
 
         let overlay = Overlay::new(id.clone(), path.clone(), moved_path.clone());

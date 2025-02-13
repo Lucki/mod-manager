@@ -150,7 +150,7 @@ impl ModSet {
                         .join(&mod_name)
                         .to_str()
                         .expect("Unable to get string version of PathBuf.")
-                        .to_string();
+                        .replace(":", r#"\:"#);
 
                     if !mount_string.contains(&mod_path) {
                         // mount_string = &mut format!("{}:{}", &mount_string, mod_path);
@@ -209,7 +209,7 @@ mod tests {
         mods = ["set2", "mod 1", "mod 2"]
 
         ["set2"]
-        mods = ["mod 1", "mod 3"]
+        mods = ["mod 1", "mod: 3"]
 
         ["asd"]
         command = [
@@ -219,7 +219,7 @@ mod tests {
         "#.parse::<Table>().unwrap();
 
         let set_config = game_config.get("set1").unwrap().as_table().unwrap().clone();
-        let root_path = PathBuf::from(String::from("test/mod root")).canonicalize().unwrap();
+        let root_path = PathBuf::from(String::from("test/mod: root")).canonicalize().unwrap();
 
         assert!(ModSet::from_config("set1", &set_config, "test_game".to_owned(), &game_config, root_path, &mut HashSet::new()).is_ok());
     }
@@ -234,7 +234,7 @@ mod tests {
         "#.parse::<Table>().unwrap();
 
         let set_config = game_config.get("set1").unwrap().as_table().unwrap().clone();
-        let root_path = PathBuf::from(String::from("test/mod root")).canonicalize().unwrap();
+        let root_path = PathBuf::from(String::from("test/mod: root")).canonicalize().unwrap();
 
         assert!(ModSet::from_config("set1", &set_config, "test_game".to_owned(), &game_config, root_path, &mut HashSet::new()).is_err());
     }
@@ -248,7 +248,7 @@ mod tests {
         "#.parse::<Table>().unwrap();
 
         let set_config = game_config.get("set1").unwrap().as_table().unwrap().clone();
-        let root_path = PathBuf::from(String::from("test/mod root")).canonicalize().unwrap();
+        let root_path = PathBuf::from(String::from("test/mod: root")).canonicalize().unwrap();
 
         assert!(ModSet::from_config("set1", &set_config, "test_game".to_owned(), &game_config, root_path, &mut HashSet::new()).is_err());
     }
@@ -262,7 +262,7 @@ mod tests {
         "#.parse::<Table>().unwrap();
 
         let set_config = game_config.get("set1").unwrap().as_table().unwrap().clone();
-        let root_path = PathBuf::from(String::from("test/mod root")).canonicalize().unwrap();
+        let root_path = PathBuf::from(String::from("test/mod: root")).canonicalize().unwrap();
 
         assert!(ModSet::from_config("set1", &set_config, "test_game".to_owned(), &game_config, root_path, &mut HashSet::new()).is_err());
     }
@@ -275,7 +275,7 @@ mod tests {
         "#.parse::<Table>().unwrap();
 
         let set_config = game_config.get("set1").unwrap().as_table().unwrap().clone();
-        let root_path = PathBuf::from(String::from("test/mod root")).canonicalize().unwrap();
+        let root_path = PathBuf::from(String::from("test/mod: root")).canonicalize().unwrap();
 
         assert!(ModSet::from_config("set1", &set_config, "test_game".to_owned(), &game_config, root_path, &mut HashSet::new()).is_err());
     }
@@ -289,7 +289,7 @@ mod tests {
         "#.parse::<Table>().unwrap();
 
         let set_config = game_config.get("set1").unwrap().as_table().unwrap().clone();
-        let root_path = PathBuf::from(String::from("test/mod root")).canonicalize().unwrap();
+        let root_path = PathBuf::from(String::from("test/mod: root")).canonicalize().unwrap();
 
         assert!(ModSet::from_config("set1", &set_config, "test_game".to_owned(), &game_config, root_path, &mut HashSet::new()).is_err());
     }
@@ -309,7 +309,7 @@ mod tests {
         "#.parse::<Table>().unwrap();
 
         let set_config = game_config.get("set1").unwrap().as_table().unwrap().clone();
-        let root_path = PathBuf::from(String::from("test/mod root")).canonicalize().unwrap();
+        let root_path = PathBuf::from(String::from("test/mod: root")).canonicalize().unwrap();
 
         assert!(ModSet::from_config("set1", &set_config, "test_game".to_owned(), &game_config, root_path, &mut HashSet::new()).is_err());
     }
@@ -323,7 +323,7 @@ mod tests {
         "#.parse::<Table>().unwrap();
 
         let set_config = game_config.get("set1").unwrap().as_table().unwrap().clone();
-        let root_path = PathBuf::from(String::from("test/mod root")).canonicalize().unwrap();
+        let root_path = PathBuf::from(String::from("test/mod: root")).canonicalize().unwrap();
 
         assert!(ModSet::from_config("set1", &set_config, "test_game".to_owned(), &game_config, root_path, &mut HashSet::new()).is_err());
     }
@@ -353,7 +353,7 @@ mod tests {
         "#.parse::<Table>().unwrap();
 
         let set_config = game_config.get("set1").unwrap().as_table().unwrap().clone();
-        let root_path = PathBuf::from(String::from("test/mod root")).canonicalize().unwrap();
+        let root_path = PathBuf::from(String::from("test/mod: root")).canonicalize().unwrap();
         let mod_set = ModSet::from_config("set1", &set_config, "test_game".to_owned(), &game_config, root_path, &mut HashSet::new()).unwrap();
 
         let asd_command = ExternalCommand::from_config("test_game".to_string(), "asd".to_string(), &game_config.get("asd").unwrap().as_table().unwrap()).unwrap();
@@ -374,15 +374,15 @@ mod tests {
         ["set1"]
         mods = ["set2", "mod 1", "mod 2"]
         ["set2"]
-        mods = ["mod 1", "mod 3"]
+        mods = ["mod 1", "mod: 3"]
         "#.parse::<Table>().unwrap();
 
         let set_config = game_config.get("set1").unwrap().as_table().unwrap().clone();
-        let root_path = PathBuf::from(String::from("test/mod root")).canonicalize().unwrap();
-        let mod1_path = root_path.join("mod 1");
-        let mod2_path = root_path.join("mod 2");
-        let mod3_path = root_path.join("mod 3");
-        let mnt_string = format!("{}:{}:{}", mod1_path.display(), mod3_path.display(), mod2_path.display());
+        let root_path = PathBuf::from(String::from("test/mod: root")).canonicalize().unwrap();
+        let mod1_path = root_path.join("mod 1").to_str().unwrap().replace(":", r#"\:"#);
+        let mod2_path = root_path.join("mod 2").to_str().unwrap().replace(":", r#"\:"#);
+        let mod3_path = root_path.join("mod: 3").to_str().unwrap().replace(":", r#"\:"#);
+        let mnt_string = format!("{}:{}:{}", mod1_path, mod3_path, mod2_path);
 
         let mut mount_string = "".to_owned();
         ModSet::from_config("set1", &set_config, "test_game".to_owned(), &game_config, root_path, &mut HashSet::new()).unwrap().get_mount_string(&mut mount_string);
