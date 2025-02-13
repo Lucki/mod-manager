@@ -96,7 +96,8 @@ __mod-manager-game-identifier() {
     local available=()
 
     for config in "$XDG_CONFIG_HOME"/mod-manager/*.toml; do
-        available+=("$(basename "$config")")
+        # escape colons in result
+        available+=("${$(basename "$config")//:/\:}")
     done
 
     # shellcheck disable=SC2068
@@ -113,8 +114,9 @@ __mod-manager-set-identifier() {
 
     if [ -f "$config" ]; then
         # Use grep to find lines containing "[table_name]" and "mods"
+        # escape colons in result
         # shellcheck disable=SC2046
-        _values 'set name' $(grep -E '^\[.*\]|mods' "${config//\"/}" | \
+        _values 'set name' $(grep -E '^\[.*\]|mods' "${config//\"/}" | sed 's/:/\\:/g' | \
             # Filter out lines containing comments or empty lines
             grep -vE '^\s*#|^\s*$' | \
             # Use awk to extract table names containing "mods" and remove surrounding brackets
