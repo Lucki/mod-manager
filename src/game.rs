@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::fs::create_dir_all;
 use std::io::{stdin, ErrorKind};
 use std::process::Child;
 use std::{fs, path::PathBuf, str::FromStr, vec};
@@ -100,6 +99,7 @@ impl Game {
                     .or_else(|error| Err(format!("Could not get 'mod_root_path' for game '{}': {}", id, error)))?
                     .canonicalize()
                     .or_else(|error| Err(format!("Unable to get absolute mod root path for game '{}': {}", id, error)))?;
+                // TODO: Re-evaluate this check
                 if !path.exists() {
                     return Err(format!("'mod_root_path' is not an existing directory for game '{}': {}", id, path.display()));
                 }
@@ -208,7 +208,7 @@ impl Game {
         }
 
         // Create 'path' directory
-        create_dir_all(&self.path)
+        fs::create_dir_all(&self.path)
             .or_else(|error| return Err(format!("Failed creating game '{}' directory '{}': {}", self.id, self.path.display(), error)))?;
 
         let mut mount_string = self.mount_options.clone();
@@ -507,6 +507,35 @@ impl Game {
                     continue;
                 },
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn create_empty_config() {
+        let id = String::from("test");
+        let xdg_dirs = BaseDirectories::with_prefix(format!("mod-manager")).unwrap();
+        let game_path = PathBuf::from(String::from("test/game"));
+        let config_name = format!("{}.toml", id);
+
+        // clean file if it already exists for an even testing ground
+        match xdg_dirs.find_config_file(config_name.clone()) {
+            Some(path) => fs::remove_file(path).unwrap(),
+            None => (),
+        }
+
+        let game = Game::new(id.clone(), game_path);
+        assert!(game.is_ok());
+        assert_eq!(game.unwrap().path.to_str().unwrap(), "test/game");
+
+        // clean remnants after test
+        match xdg_dirs.find_config_file(config_name.clone()) {
+            Some(path) => fs::remove_file(path).unwrap(),
+            None => assert!(false, "Config file doesn't exist."),
         }
     }
 }
