@@ -211,52 +211,7 @@ impl Game {
         fs::create_dir_all(&self.path)
             .or_else(|error| return Err(format!("Failed creating game '{}' directory '{}': {}", self.id, self.path.display(), error)))?;
 
-        let mut mount_string = self.mount_options.clone();
-        if writable || self.writable || self.mod_tree.as_ref().is_some_and(|t| t.should_be_writable()) {
-            let mut persistent_name = "persistent_modless".to_string();
-
-            if self.active_set.is_some() && self.mod_tree.is_some() {
-                persistent_name = format!("{}_persistent", self.active_set.as_ref().unwrap());
-            }
-
-            if is_setup {
-                persistent_name = "persistent_setup".to_string();
-            }
-
-            // TODO: Evaluate if it's worth moving the upperdir into and from $XDG_DATA_HOME
-
-            // The working directory (workdir) needs to be an empty directory on the same filesystem as the upper directory
-            let upperdir = self.xdg_dirs.create_cache_directory(persistent_name)
-                .or_else(|error| return Err(format!("Failed creating 'upperdir' for game '{}': {}", self.id, error)))?;
-            let workdir = self.xdg_dirs.create_cache_directory("workdir")
-                .or_else(|error| return Err(format!("Failed creating 'workdir' for game '{}': {}", self.id, error)))?;
-            self.xdg_dirs.create_cache_directory("workdir/index")
-                .or_else(|error| return Err(format!("Failed creating 'workdir/index' for game '{}': {}", self.id, error)))?;
-            self.xdg_dirs.create_cache_directory("workdir/work")
-                .or_else(|error| return Err(format!("Failed creating 'workdir/work' for game '{}': {}", self.id, error)))?;
-
-            match self.overlay.clean_working_directory(&workdir) {
-                Ok(_) => {},
-                Err(error) => return Err(format!("Unable to clean the workdir for game '{}': {}", self.id, error)),
-            }
-
-            // Mods can change but we will get ESTALE for some configurations
-            // Force: index=off,metacopy=off
-            // https://bbs.archlinux.org/viewtopic.php?pid=2031633#p2031633
-            mount_string = format!("{},upperdir={},workdir={},index=off,metacopy=off",
-                                        mount_string,
-                                        upperdir.to_str().ok_or(format!("Failed converting 'upperdir' string: {}", upperdir.display()))?,
-                                        workdir.to_str().ok_or(format!("Failed converting 'workdir' string: {}", workdir.display()))?);
-        } else if self.active_set.is_none() && self.mod_tree.is_none() {
-            // Creating an immutable OverlayFS with a single folder.
-            // OverlayFS can't mount a single folder so we're creating an empty dummy to assist us.
-            let dummy = self.xdg_dirs.create_cache_directory("mod-manager_empty_dummy")
-                .or_else(|error| return Err(format!("Failed creating game '{}' cache directory: {}", self.id, error)))?;
-
-            mount_string = format!("{}:{}", mount_string, dummy.to_str()
-                .ok_or(format!("Failed converting string '{}' for game '{}' cache directory", dummy.display(), self.id))?);
-        }
-
+        let mount_string = self.get_mount_string(writable, is_setup)?;
         match self.overlay.mount(mount_string) {
             Ok(_) => {},
             Err(error) => return Err(format!("Unable to mount game '{}': {}", self.id, error)),
@@ -413,6 +368,56 @@ impl Game {
         println!("Your mod files are in '{}'. To apply the mod, add '{}' into a mod set for '{}'.", new_mod_path.display(), new_mod_id, self.id);
 
         Ok(())
+    }
+    
+    fn get_mount_string(&self, writable: bool, is_setup: bool) -> Result<String, String> {
+        let mut mount_string = self.mount_options.clone();
+        if writable || self.writable || self.mod_tree.as_ref().is_some_and(|t| t.should_be_writable()) {
+            let mut persistent_name = "persistent_modless".to_string();
+
+            if self.active_set.is_some() && self.mod_tree.is_some() {
+                persistent_name = format!("{}_persistent", self.active_set.as_ref().unwrap());
+            }
+
+            if is_setup {
+                persistent_name = "persistent_setup".to_string();
+            }
+
+            // TODO: Evaluate if it's worth moving the upperdir into and from $XDG_DATA_HOME
+
+            // The working directory (workdir) needs to be an empty directory on the same filesystem as the upper directory
+            let upperdir = self.xdg_dirs.create_cache_directory(persistent_name)
+                .or_else(|error| return Err(format!("Failed creating 'upperdir' for game '{}': {}", self.id, error)))?;
+            let workdir = self.xdg_dirs.create_cache_directory("workdir")
+                .or_else(|error| return Err(format!("Failed creating 'workdir' for game '{}': {}", self.id, error)))?;
+            self.xdg_dirs.create_cache_directory("workdir/index")
+                .or_else(|error| return Err(format!("Failed creating 'workdir/index' for game '{}': {}", self.id, error)))?;
+            self.xdg_dirs.create_cache_directory("workdir/work")
+                .or_else(|error| return Err(format!("Failed creating 'workdir/work' for game '{}': {}", self.id, error)))?;
+
+            match self.overlay.clean_working_directory(&workdir) {
+                Ok(_) => {},
+                Err(error) => return Err(format!("Unable to clean the workdir for game '{}': {}", self.id, error)),
+            }
+
+            // Mods can change but we will get ESTALE for some configurations
+            // Force: index=off,metacopy=off
+            // https://bbs.archlinux.org/viewtopic.php?pid=2031633#p2031633
+            mount_string = format!("{},upperdir={},workdir={},index=off,metacopy=off",
+                                        mount_string,
+                                        upperdir.to_str().ok_or(format!("Failed converting 'upperdir' string: {}", upperdir.display()))?,
+                                        workdir.to_str().ok_or(format!("Failed converting 'workdir' string: {}", workdir.display()))?);
+        } else if self.active_set.is_none() && self.mod_tree.is_none() {
+            // Creating an immutable OverlayFS with a single folder.
+            // OverlayFS can't mount a single folder so we're creating an empty dummy to assist us.
+            let dummy = self.xdg_dirs.create_cache_directory("mod-manager_empty_dummy")
+                .or_else(|error| return Err(format!("Failed creating game '{}' cache directory: {}", self.id, error)))?;
+
+            mount_string = format!("{}:{}", mount_string, dummy.to_str()
+                .ok_or(format!("Failed converting string '{}' for game '{}' cache directory", dummy.display(), self.id))?);
+        }
+        
+        return Ok(mount_string);
     }
 
     fn should_run_pre_commands(&self) -> bool {
