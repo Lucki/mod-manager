@@ -106,7 +106,7 @@ Edit or create a configuration file for a game with $EDITOR
 Usage: mod-manager edit <GAME>
 
 Arguments:
-  <GAME>  Identifier matching the config file. Can be a new identifier if PATH is also available
+  <GAME>  Identifier matching the config file. Can be a new identifier
 
 Options:
   -h, --help  Print help
