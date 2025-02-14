@@ -264,7 +264,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn mod_set() {
+    fn parsing() {
         let game_config = r#"
         ["set1"]
         writable = true
@@ -301,7 +301,7 @@ mod tests {
     }
 
     #[test]
-    fn mod_set_mods_recursion() {
+    fn mods_recursion() {
         let game_config = r#"
         ["set1"]
         mods = ["set2"]
@@ -328,7 +328,7 @@ mod tests {
     }
 
     #[test]
-    fn mod_set_mods_malformed() {
+    fn mods_malformed() {
         let game_config = r#"
         ["set1"]
         mods = [0]
@@ -353,7 +353,7 @@ mod tests {
     }
 
     #[test]
-    fn mod_set_writable_malformed() {
+    fn writable_malformed() {
         let game_config = r#"
         ["set1"]
         writable = "asd"
@@ -379,7 +379,7 @@ mod tests {
     }
 
     #[test]
-    fn mod_set_mods_empty() {
+    fn mods_empty() {
         let game_config = r#"
         ["set1"]
         mods = []
@@ -404,7 +404,7 @@ mod tests {
     }
 
     #[test]
-    fn mod_set_run_pre_command_malformed() {
+    fn run_pre_command_malformed() {
         let game_config = r#"
         ["set1"]
         run_pre_command = "asd"
@@ -430,7 +430,7 @@ mod tests {
     }
 
     #[test]
-    fn mod_set_special_command_malformed() {
+    fn special_command_malformed() {
         let game_config = r#"
         ["set1"]
         command = 0
@@ -462,7 +462,7 @@ mod tests {
     }
 
     #[test]
-    fn mod_set_special_command_unavailable() {
+    fn special_command_unavailable() {
         let game_config = r#"
         ["set1"]
         command = "asd"
@@ -488,7 +488,7 @@ mod tests {
     }
 
     #[test]
-    fn mod_set_get_commands() {
+    fn get_commands() {
         let game_config = r#"
         ["set1"]
         command = "asd"
@@ -550,7 +550,7 @@ mod tests {
     }
 
     #[test]
-    fn mod_set_get_mount_string() {
+    fn get_mount_string() {
         let game_config = r#"
         ["set1"]
         mods = ["set2", "mod 1", "mod 2"]

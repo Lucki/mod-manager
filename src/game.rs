@@ -6,6 +6,7 @@ use std::{fs, path::PathBuf, str::FromStr, vec};
 use toml::{map::Map, Value};
 use xdg::BaseDirectories;
 
+use crate::get_xdg_dirs;
 use crate::mod_set::ModSet;
 use crate::overlay::MountState;
 use crate::overlay::Overlay;
@@ -31,8 +32,7 @@ pub struct Game {
 
 impl Game {
     pub fn new(id: String, game_path: PathBuf) -> Result<Self, String> {
-        let xdg_dirs_config = BaseDirectories::with_prefix(format!("mod-manager"))
-            .or_else(|error| return Err(format!("Could get user directories: {}", error)))?;
+        let xdg_dirs_config = get_xdg_dirs();
 
         let config_file = xdg_dirs_config
             .place_config_file(format!("{}.toml", id))
@@ -54,7 +54,7 @@ impl Game {
         std::fs::write(
             config_file,
             format!(
-                "path = \"{}\"",
+                r#"path = "{}""#,
                 game_path
                     .to_str()
                     .ok_or(format!("Failed to parse path {:?}", game_path))?
@@ -63,15 +63,11 @@ impl Game {
         .or_else(|error| return Err(format!("Could not write config file: {}", error)))?;
 
         // Return game generated from toml config
-        return Game::from_config(id, None);
+        return Game::from_config_file(id, None);
     }
 
-    pub fn from_config(id: String, set_override: Option<String>) -> Result<Self, String> {
-        let xdg_dirs = BaseDirectories::with_prefix(format!("mod-manager/{}", id))
-            .or_else(|error| return Err(format!("Could get user directories: {}", error)))?;
-
-        let xdg_dirs_config = BaseDirectories::with_prefix(format!("mod-manager"))
-            .or_else(|error| return Err(format!("Could get user directories: {}", error)))?;
+    pub fn from_config_file(id: String, set_override: Option<String>) -> Result<Self, String> {
+        let xdg_dirs_config = get_xdg_dirs();
 
         let config_file = xdg_dirs_config
             .find_config_file(format!("{}.toml", id))
@@ -97,6 +93,16 @@ impl Game {
                 id
             ))?
             .to_owned();
+
+        return Game::from_config(id, set_override, config);
+    }
+
+    fn from_config(
+        id: String,
+        set_override: Option<String>,
+        config: toml::Table,
+    ) -> Result<Self, String> {
+        let xdg_dirs = Game::get_xdg_dirs(id.clone())?;
 
         // 'path' field is required, fail if it doesn't exist
         let path = match config.get("path") {
@@ -615,11 +621,14 @@ impl Game {
             mount_string = format!(
                 "{}:{}",
                 mount_string,
-                dummy.to_str().ok_or(format!(
-                    "Failed converting string '{}' for game '{}' cache directory",
-                    dummy.display(),
-                    self.id
-                ))?
+                dummy
+                    .to_str()
+                    .ok_or(format!(
+                        "Failed converting string '{}' for game '{}' cache directory",
+                        dummy.display(),
+                        self.id
+                    ))?
+                    .replace(":", r#"\:"#)
             );
         }
 
@@ -737,6 +746,11 @@ impl Game {
             }
         }
     }
+
+    fn get_xdg_dirs(id: String) -> Result<BaseDirectories, String> {
+        return BaseDirectories::with_prefix(format!("mod-manager/{}", id))
+            .or_else(|error| return Err(format!("Couldn't get user directories: {}", error)));
+    }
 }
 
 #[cfg(test)]
@@ -745,7 +759,7 @@ mod tests {
 
     #[test]
     fn create_empty_config() {
-        let id = String::from("test");
+        let id = String::from("test: game");
         let xdg_dirs = BaseDirectories::with_prefix(format!("mod-manager")).unwrap();
         let game_path = PathBuf::from(String::from("test/game"));
         let config_name = format!("{}.toml", id);
@@ -765,5 +779,124 @@ mod tests {
             Some(path) => fs::remove_file(path).unwrap(),
             None => assert!(false, "Config file doesn't exist."),
         }
+    }
+
+    #[test]
+    fn mount_path_default_set() {
+        let config = get_test_config();
+        let game = Game::from_config("test: game".to_string(), None, config).unwrap();
+        let mount_string = game.get_mount_string(false, false).unwrap();
+
+        let game_path = PathBuf::from(String::from("test/game: asd"))
+            .canonicalize()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .replace(":", r#"\:"#);
+        let root_path = PathBuf::from(String::from("test/mod: root"))
+            .canonicalize()
+            .unwrap();
+        let mod1_path = root_path
+            .join("mod 1")
+            .to_str()
+            .unwrap()
+            .replace(":", r#"\:"#);
+        let mod2_path = root_path
+            .join("mod 2")
+            .to_str()
+            .unwrap()
+            .replace(":", r#"\:"#);
+        let mod3_path = root_path
+            .join("mod: 3")
+            .to_str()
+            .unwrap()
+            .replace(":", r#"\:"#);
+        let mnt_string = format!(
+            "x-gvfs-hide,comment=x-gvfs-hide,lowerdir={}:{}:{}:{}_mod-manager",
+            mod1_path, mod2_path, mod3_path, game_path
+        );
+
+        assert_eq!(mnt_string, mount_string);
+    }
+
+    #[test]
+    fn mount_path_set_override() {
+        let config = get_test_config();
+        let game =
+            Game::from_config("test: game".to_string(), Some("set2".to_string()), config).unwrap();
+        let mount_string = game.get_mount_string(false, false).unwrap();
+
+        let game_path = PathBuf::from(String::from("test/game: asd"))
+            .canonicalize()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .replace(":", r#"\:"#);
+        let root_path = PathBuf::from(String::from("test/mod: root"))
+            .canonicalize()
+            .unwrap();
+        let mod1_path = root_path
+            .join("mod 1")
+            .to_str()
+            .unwrap()
+            .replace(":", r#"\:"#);
+        let mnt_string = format!(
+            "x-gvfs-hide,comment=x-gvfs-hide,lowerdir={}:{}_mod-manager",
+            mod1_path, game_path
+        );
+
+        assert_eq!(mnt_string, mount_string);
+    }
+
+    #[test]
+    fn mount_path_empty_set_override() {
+        let config = get_test_config();
+        let game =
+            Game::from_config("test: game".to_string(), Some("".to_string()), config).unwrap();
+        let mount_string = game.get_mount_string(false, false).unwrap();
+
+        let game_path = PathBuf::from(String::from("test/game: asd"))
+            .canonicalize()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .replace(":", r#"\:"#);
+        let cache_path = game
+            .xdg_dirs
+            .get_cache_home()
+            .join("mod-manager_empty_dummy")
+            .to_str()
+            .unwrap()
+            .replace(":", r#"\:"#);
+        let mnt_string = format!(
+            "x-gvfs-hide,comment=x-gvfs-hide,lowerdir={}_mod-manager:{}",
+            game_path, cache_path
+        );
+
+        assert_eq!(mnt_string, mount_string);
+    }
+
+    fn get_test_config() -> toml::map::Map<String, toml::Value> {
+        let config_file = PathBuf::from("./test/test.toml");
+        let game_path = PathBuf::from("./test/game: asd");
+        let mod_root = PathBuf::from("./test/mod: root");
+        let mut config = fs::read_to_string(&config_file)
+            .unwrap()
+            .parse::<Value>()
+            .unwrap()
+            .as_table()
+            .unwrap()
+            .to_owned();
+
+        config.insert(
+            "path".to_string(),
+            toml::Value::try_from(fs::canonicalize(&game_path).unwrap().to_str().unwrap()).unwrap(),
+        );
+        config.insert(
+            "mod_root_path".to_string(),
+            toml::Value::try_from(fs::canonicalize(&mod_root).unwrap().to_str().unwrap()).unwrap(),
+        );
+
+        return config;
     }
 }

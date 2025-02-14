@@ -1,0 +1,49 @@
+active = "set1"
+path = "game: asd"          # we fill this in tests
+mod_root_path = "mod: root" # we fill this in tests
+
+# upper overwrites lower
+["set1"]
+# writable = true
+run_pre_command = true
+mods = [
+    "mod 1",
+    "mod 2",
+    "mod: 3",
+    "set2",
+]
+# command = "cmd_test" # Special command test
+
+["set2"]
+# writable = true
+mods = [
+    "mod 1", # Testing double entry detection
+    # "set1", # Testing recursion detection
+]
+
+[[pre_command]]
+command = [
+    "echo",
+    "pre_command1",
+]
+
+[[pre_command]]
+delay_after = 5 # Delay following stuff by seconds
+command = [
+    "echo",
+    "pre_command2 with wait",
+]
+[pre_command.environment]
+MY_ENV = "variable2"
+
+[[pre_command]]
+wait_for_exit = false # Don't wait for exiting, this will run in parallel to the game
+command = [
+    "gnome-calculator",
+]
+
+["cmd_test"]
+command = [
+    "echo",
+    "special_command_test"
+]

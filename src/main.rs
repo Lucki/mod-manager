@@ -91,8 +91,7 @@ enum Action {
 fn main() {
     let args = Cli::parse();
 
-    let xdg_dirs =
-        BaseDirectories::with_prefix("mod-manager").expect("Unable to get user directories!");
+    let xdg_dirs = get_xdg_dirs();
 
     match args.action {
         Action::Activate {
@@ -104,14 +103,14 @@ fn main() {
 
             match game {
                 Some(game) => {
-                    games_to_act_on.push(Game::from_config(game, set).unwrap());
+                    games_to_act_on.push(Game::from_config_file(game, set).unwrap());
                 }
                 None => {
                     writable = false;
 
                     for game_config in get_game_config_list(xdg_dirs) {
                         games_to_act_on.push(
-                            match Game::from_config(
+                            match Game::from_config_file(
                                 game_config
                                     .file_stem()
                                     .unwrap()
@@ -165,12 +164,12 @@ fn main() {
 
             match game {
                 Some(game) => {
-                    games_to_act_on.push(Game::from_config(game, None).unwrap());
+                    games_to_act_on.push(Game::from_config_file(game, None).unwrap());
                 }
                 None => {
                     for game_config in get_game_config_list(xdg_dirs) {
                         games_to_act_on.push(
-                            match Game::from_config(
+                            match Game::from_config_file(
                                 game_config
                                     .file_stem()
                                     .unwrap()
@@ -233,7 +232,7 @@ fn main() {
         } => {
             let game = match game_path {
                 Some(game_path) => Game::new(game_id, game_path).unwrap(),
-                None => Game::from_config(game_id, set).unwrap(),
+                None => Game::from_config_file(game_id, set).unwrap(),
             };
 
             match game.setup(mod_id) {
@@ -259,7 +258,7 @@ fn main() {
                 panic!("Missing command for wrapping game");
             }
 
-            let game = Game::from_config(game_id, set).unwrap();
+            let game = Game::from_config_file(game_id, set).unwrap();
             match game.wrap(
                 ExternalCommand::new("wrap_command".to_string(), command, Some(true), None),
                 writable,
@@ -287,4 +286,8 @@ fn get_game_config_list(xdg: BaseDirectories) -> Vec<PathBuf> {
         None => false,
     });
     config_files
+}
+
+pub fn get_xdg_dirs() -> BaseDirectories {
+    return BaseDirectories::with_prefix("mod-manager").expect("Unable to get user directories!");
 }
