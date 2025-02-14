@@ -1,6 +1,6 @@
+use clap::Parser;
 use std::env;
 use std::{path::PathBuf, vec};
-use clap::Parser;
 use xdg::BaseDirectories;
 
 mod external_command;
@@ -91,30 +91,48 @@ enum Action {
 fn main() {
     let args = Cli::parse();
 
-    let xdg_dirs = BaseDirectories::with_prefix("mod-manager")
-        .expect("Unable to get user directories!");
+    let xdg_dirs =
+        BaseDirectories::with_prefix("mod-manager").expect("Unable to get user directories!");
 
     match args.action {
-        Action::Activate { game, set, mut writable } => {
+        Action::Activate {
+            game,
+            set,
+            mut writable,
+        } => {
             let mut games_to_act_on: Vec<Game> = vec![];
 
             match game {
                 Some(game) => {
                     games_to_act_on.push(Game::from_config(game, set).unwrap());
-                },
+                }
                 None => {
                     writable = false;
 
                     for game_config in get_game_config_list(xdg_dirs) {
-                        games_to_act_on.push(match Game::from_config(game_config.file_stem().unwrap().to_str().unwrap().to_string(), None){
-                            Ok(g) => g,
-                            Err(error) => {
-                                println!("Unable to create game object for '{:?}': {}", game_config.file_stem(), error);
-                                continue;
-                            }
-                        });
-                    };
-                },
+                        games_to_act_on.push(
+                            match Game::from_config(
+                                game_config
+                                    .file_stem()
+                                    .unwrap()
+                                    .to_str()
+                                    .unwrap()
+                                    .to_string(),
+                                None,
+                            ) {
+                                Ok(g) => g,
+                                Err(error) => {
+                                    println!(
+                                        "Unable to create game object for '{:?}': {}",
+                                        game_config.file_stem(),
+                                        error
+                                    );
+                                    continue;
+                                }
+                            },
+                        );
+                    }
+                }
             }
 
             let mut failed = false;
@@ -141,25 +159,39 @@ fn main() {
                     }
                 }
             }
-        },
+        }
         Action::Deactivate { game } => {
             let mut games_to_act_on: Vec<Game> = vec![];
 
             match game {
                 Some(game) => {
                     games_to_act_on.push(Game::from_config(game, None).unwrap());
-                },
+                }
                 None => {
                     for game_config in get_game_config_list(xdg_dirs) {
-                        games_to_act_on.push(match Game::from_config(game_config.file_stem().unwrap().to_str().unwrap().to_string(), None){
-                            Ok(g) => g,
-                            Err(error) => {
-                                println!("Unable to create game object for '{:?}': {}", game_config.file_stem(), error);
-                                continue;
-                            }
-                        });
+                        games_to_act_on.push(
+                            match Game::from_config(
+                                game_config
+                                    .file_stem()
+                                    .unwrap()
+                                    .to_str()
+                                    .unwrap()
+                                    .to_string(),
+                                None,
+                            ) {
+                                Ok(g) => g,
+                                Err(error) => {
+                                    println!(
+                                        "Unable to create game object for '{:?}': {}",
+                                        game_config.file_stem(),
+                                        error
+                                    );
+                                    continue;
+                                }
+                            },
+                        );
                     }
-                },
+                }
             }
 
             for game in games_to_act_on {
@@ -170,7 +202,7 @@ fn main() {
                     }
                 }
             }
-        },
+        }
         Action::Edit { game } => {
             let mut arguments: Vec<String> = vec![];
 
@@ -180,18 +212,25 @@ fn main() {
             };
 
             arguments.push(editor);
-            arguments.push(xdg_dirs
-                .place_config_file(format!("{}.toml", game))
-                .expect("Unable to place config file.")
-                .to_str()
-                .expect("Failed converting config path to string.")
-                .to_owned());
+            arguments.push(
+                xdg_dirs
+                    .place_config_file(format!("{}.toml", game))
+                    .expect("Unable to place config file.")
+                    .to_str()
+                    .expect("Failed converting config path to string.")
+                    .to_owned(),
+            );
 
             ExternalCommand::new("editor".to_owned(), arguments, Some(true), None)
                 .run()
                 .unwrap();
-        },
-        Action::Setup { game: game_id, mod_id, path: game_path, set } => {
+        }
+        Action::Setup {
+            game: game_id,
+            mod_id,
+            path: game_path,
+            set,
+        } => {
             let game = match game_path {
                 Some(game_path) => Game::new(game_id, game_path).unwrap(),
                 None => Game::from_config(game_id, set).unwrap(),
@@ -209,14 +248,22 @@ fn main() {
                     }
                 }
             }
-        },
-        Action::Wrap { game: game_id, command, set, writable } => {
+        }
+        Action::Wrap {
+            game: game_id,
+            command,
+            set,
+            writable,
+        } => {
             if command.is_empty() {
                 panic!("Missing command for wrapping game");
             }
 
             let game = Game::from_config(game_id, set).unwrap();
-            match game.wrap(ExternalCommand::new("wrap_command".to_string(), command, Some(true), None), writable) {
+            match game.wrap(
+                ExternalCommand::new("wrap_command".to_string(), command, Some(true), None),
+                writable,
+            ) {
                 Ok(()) => (),
                 Err(error) => {
                     println!("Failed wrapping game overlay '{}': {}", game.id, error);
@@ -228,17 +275,16 @@ fn main() {
                     }
                 }
             }
-        },
+        }
     }
 }
 
 /// Return a list of all *.toml of files in a config folder.
 fn get_game_config_list(xdg: BaseDirectories) -> Vec<PathBuf> {
     let mut config_files = xdg.list_config_files_once("");
-    config_files
-        .retain(|file| match file.extension() {
-            Some(ext) => ext == "toml",
-            None => false,
-        });
+    config_files.retain(|file| match file.extension() {
+        Some(ext) => ext == "toml",
+        None => false,
+    });
     config_files
 }

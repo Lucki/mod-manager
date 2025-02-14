@@ -1,4 +1,8 @@
-use std::{process::{Child, Command}, thread, time::Duration};
+use std::{
+    process::{Child, Command},
+    thread,
+    time::Duration,
+};
 use toml::{map::Map, Value};
 
 #[derive(Clone, Debug)]
@@ -11,7 +15,12 @@ pub struct ExternalCommand {
 }
 
 impl ExternalCommand {
-    pub fn new(id: String, args: Vec<String>, wait_for_exit: Option<bool>, delay_after: Option<u64>) -> Self {
+    pub fn new(
+        id: String,
+        args: Vec<String>,
+        wait_for_exit: Option<bool>,
+        delay_after: Option<u64>,
+    ) -> Self {
         ExternalCommand {
             id,
             args,
@@ -21,21 +30,33 @@ impl ExternalCommand {
         }
     }
 
-    pub fn from_config(game_name: String, id: String, config: &Map<String, Value>) -> Result<Self, String> {
+    pub fn from_config(
+        game_name: String,
+        id: String,
+        config: &Map<String, Value>,
+    ) -> Result<Self, String> {
         let command_array = match config.get("command") {
-            Some(value) => value.as_array().ok_or(format!("Invalid 'command' key type for game '{}' (must be an array)", game_name))?,
+            Some(value) => value.as_array().ok_or(format!(
+                "Invalid 'command' key type for game '{}' (must be an array)",
+                game_name
+            ))?,
             None => return Err("Missing 'command' key".to_string()),
         };
 
         if command_array.is_empty() {
-            return Err(format!("'command' array is empty for game '{}'",game_name));
+            return Err(format!("'command' array is empty for game '{}'", game_name));
         }
 
         let mut command_array_strings: Vec<String> = vec![];
         for arg in command_array {
             match arg.as_str() {
                 Some(s) => command_array_strings.push(s.to_owned()),
-                None => return Err(format!("Error converting to string in 'command' array for game '{}'", game_name)),
+                None => {
+                    return Err(format!(
+                        "Error converting to string in 'command' array for game '{}'",
+                        game_name
+                    ))
+                }
             }
         }
 
@@ -43,7 +64,12 @@ impl ExternalCommand {
         if let Some(value) = config.get("wait_for_exit") {
             wait_for_exit = match value.as_bool() {
                 Some(value) => value,
-                None => return Err(format!("'wait_for_exit' is not a boolean for game '{}'", game_name)),
+                None => {
+                    return Err(format!(
+                        "'wait_for_exit' is not a boolean for game '{}'",
+                        game_name
+                    ))
+                }
             };
         }
 
@@ -51,20 +77,34 @@ impl ExternalCommand {
         if let Some(value) = config.get("delay_after") {
             delay_after = match value.as_integer() {
                 Some(delay) => Some(delay as u64),
-                None => { return Err(format!("Invalid 'delay_after' value type for game '{}' (must be integer)", game_name)); }
+                None => {
+                    return Err(format!(
+                        "Invalid 'delay_after' value type for game '{}' (must be integer)",
+                        game_name
+                    ));
+                }
             };
         }
 
         let mut env: Vec<(String, String)> = vec![];
         if let Some(value) = config.get("environment") {
-            let environment_table = value.as_table().ok_or(format!("'environment' must be a table in game '{}'", game_name))?;
+            let environment_table = value.as_table().ok_or(format!(
+                "'environment' must be a table in game '{}'",
+                game_name
+            ))?;
 
             for environment in environment_table {
                 if !environment.1.is_str() {
-                    return Err(format!("Invalid value in 'environment' table '{}' for key '{}' (must be string)", game_name, environment.0));
+                    return Err(format!(
+                        "Invalid value in 'environment' table '{}' for key '{}' (must be string)",
+                        game_name, environment.0
+                    ));
                 }
 
-                env.push((environment.0.clone(), environment.1.as_str().unwrap().to_string()));
+                env.push((
+                    environment.0.clone(),
+                    environment.1.as_str().unwrap().to_string(),
+                ));
             }
         }
 
@@ -73,7 +113,7 @@ impl ExternalCommand {
             args: command_array_strings,
             env,
             wait_for_exit,
-            delay_after
+            delay_after,
         });
     }
 
@@ -89,7 +129,9 @@ impl ExternalCommand {
 
         let process = match process_result {
             Ok(process) => Some(process),
-            Err(error) => { return Err(error); },
+            Err(error) => {
+                return Err(error);
+            }
         };
 
         if !self.wait_for_exit {
@@ -101,9 +143,14 @@ impl ExternalCommand {
         }
 
         match process.unwrap().wait() {
-            Ok(status) => if !status.success() {
-                println!("Command '{}' ended with non zero status for game '{}'", self.args[0], self.id);
-            },
+            Ok(status) => {
+                if !status.success() {
+                    println!(
+                        "Command '{}' ended with non zero status for game '{}'",
+                        self.args[0], self.id
+                    );
+                }
+            }
             Err(error) => println!("Process failed to wait for game '{}': {}", self.id, error),
         }
 
