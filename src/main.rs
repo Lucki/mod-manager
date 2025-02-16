@@ -108,29 +108,10 @@ fn main() {
                 None => {
                     writable = false;
 
-                    for game_config in get_game_config_list(xdg_dirs) {
-                        games_to_act_on.push(
-                            match Game::from_config_file(
-                                game_config
-                                    .file_stem()
-                                    .unwrap()
-                                    .to_str()
-                                    .unwrap()
-                                    .to_string(),
-                                None,
-                            ) {
-                                Ok(g) => g,
-                                Err(error) => {
-                                    println!(
-                                        "Unable to create game object for '{:?}': {}",
-                                        game_config.file_stem(),
-                                        error
-                                    );
-                                    continue;
-                                }
-                            },
-                        );
-                    }
+                    create_games_from_config_files(
+                        &mut games_to_act_on,
+                        get_game_config_list(xdg_dirs),
+                    );
                 }
             }
 
@@ -167,29 +148,10 @@ fn main() {
                     games_to_act_on.push(Game::from_config_file(game, None).unwrap());
                 }
                 None => {
-                    for game_config in get_game_config_list(xdg_dirs) {
-                        games_to_act_on.push(
-                            match Game::from_config_file(
-                                game_config
-                                    .file_stem()
-                                    .unwrap()
-                                    .to_str()
-                                    .unwrap()
-                                    .to_string(),
-                                None,
-                            ) {
-                                Ok(g) => g,
-                                Err(error) => {
-                                    println!(
-                                        "Unable to create game object for '{:?}': {}",
-                                        game_config.file_stem(),
-                                        error
-                                    );
-                                    continue;
-                                }
-                            },
-                        );
-                    }
+                    create_games_from_config_files(
+                        &mut games_to_act_on,
+                        get_game_config_list(xdg_dirs),
+                    );
                 }
             }
 
@@ -275,6 +237,32 @@ fn main() {
                 }
             }
         }
+    }
+}
+
+fn create_games_from_config_files(games_list: &mut Vec<Game>, config_files: Vec<PathBuf>) -> () {
+    for game_config in config_files {
+        games_list.push(
+            match Game::from_config_file(
+                game_config
+                    .file_stem()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+                None,
+            ) {
+                Ok(g) => g,
+                Err(error) => {
+                    println!(
+                        "Unable to create game object for '{:?}': {}",
+                        game_config.file_stem(),
+                        error
+                    );
+                    continue;
+                }
+            },
+        );
     }
 }
 
