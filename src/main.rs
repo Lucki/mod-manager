@@ -91,48 +91,18 @@ enum Action {
 fn main() {
     let args = Cli::parse();
 
-    let xdg_dirs = get_xdg_dirs();
-
     match args.action {
         Action::Activate {
             game,
             set,
             mut writable,
         } => {
-            let mut games_to_act_on: Vec<Game> = vec![];
-
-            match game {
-                Some(game) => {
-                    games_to_act_on.push(Game::from_config_file(game, set).unwrap());
-                }
-                None => {
-                    writable = false;
-
-                    for game_config in get_game_config_list(xdg_dirs) {
-                        games_to_act_on.push(
-                            match Game::from_config_file(
-                                game_config
-                                    .file_stem()
-                                    .unwrap()
-                                    .to_str()
-                                    .unwrap()
-                                    .to_string(),
-                                None,
-                            ) {
-                                Ok(g) => g,
-                                Err(error) => {
-                                    println!(
-                                        "Unable to create game object for '{:?}': {}",
-                                        game_config.file_stem(),
-                                        error
-                                    );
-                                    continue;
-                                }
-                            },
-                        );
-                    }
-                }
+            if game.is_none() {
+                // If no specific game is given we ignore this flag to not accidentially
+                // make all mounts writable
+                writable = false;
             }
+            let games_to_act_on: Vec<Game> = get_game_list(game, set);
 
             let mut failed = false;
             for game in &games_to_act_on {
@@ -150,7 +120,7 @@ fn main() {
                 return;
             }
 
-            for game in &games_to_act_on {
+            for game in games_to_act_on {
                 match game.deactivate() {
                     Ok(()) => (),
                     Err(error) => {
@@ -160,40 +130,7 @@ fn main() {
             }
         }
         Action::Deactivate { game } => {
-            let mut games_to_act_on: Vec<Game> = vec![];
-
-            match game {
-                Some(game) => {
-                    games_to_act_on.push(Game::from_config_file(game, None).unwrap());
-                }
-                None => {
-                    for game_config in get_game_config_list(xdg_dirs) {
-                        games_to_act_on.push(
-                            match Game::from_config_file(
-                                game_config
-                                    .file_stem()
-                                    .unwrap()
-                                    .to_str()
-                                    .unwrap()
-                                    .to_string(),
-                                None,
-                            ) {
-                                Ok(g) => g,
-                                Err(error) => {
-                                    println!(
-                                        "Unable to create game object for '{:?}': {}",
-                                        game_config.file_stem(),
-                                        error
-                                    );
-                                    continue;
-                                }
-                            },
-                        );
-                    }
-                }
-            }
-
-            for game in games_to_act_on {
+            for game in get_game_list(game, None) {
                 match game.deactivate() {
                     Ok(()) => (),
                     Err(error) => {
@@ -212,7 +149,7 @@ fn main() {
 
             arguments.push(editor);
             arguments.push(
-                xdg_dirs
+                get_xdg_dirs()
                     .place_config_file(format!("{}.toml", game))
                     .expect("Unable to place config file.")
                     .to_str()
@@ -275,6 +212,49 @@ fn main() {
                 }
             }
         }
+    }
+}
+
+/// Returns a list games, either derived from the given ID and SET or derived from all config files.
+fn get_game_list(game_id: Option<String>, override_set: Option<String>) -> Vec<Game> {
+    let mut games: Vec<Game> = vec![];
+
+    match game_id {
+        Some(game) => {
+            games.push(Game::from_config_file(game, override_set).unwrap());
+        }
+        None => {
+            let config_files = get_game_config_list(get_xdg_dirs());
+            create_games_from_config_files(&mut games, config_files);
+        }
+    }
+
+    games
+}
+
+fn create_games_from_config_files(games_list: &mut Vec<Game>, config_files: Vec<PathBuf>) -> () {
+    for game_config in config_files {
+        games_list.push(
+            match Game::from_config_file(
+                game_config
+                    .file_stem()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+                None,
+            ) {
+                Ok(g) => g,
+                Err(error) => {
+                    println!(
+                        "Unable to create game object for '{:?}': {}",
+                        game_config.file_stem(),
+                        error
+                    );
+                    continue;
+                }
+            },
+        );
     }
 }
 
