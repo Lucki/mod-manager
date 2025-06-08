@@ -497,6 +497,11 @@ impl Game {
             self.path.display()
         );
 
+        match open::that(self.path.as_os_str()) {
+            Ok(_) => (),
+            Err(_) => (),
+        }
+
         match stdin().read_line(&mut line) {
             Ok(_) => (),
             Err(error) => println!("Reading of stdin failed: {}", error),
