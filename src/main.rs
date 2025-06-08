@@ -1,6 +1,9 @@
 use clap::Parser;
 use std::env;
-use std::{path::PathBuf, vec};
+use std::fs::File;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::vec;
 use xdg::BaseDirectories;
 
 mod external_command;
@@ -147,15 +150,37 @@ fn main() {
                 Err(_) => "vi".to_owned(),
             };
 
+            let config_file = get_xdg_dirs()
+                .place_config_file(format!("{}.toml", game))
+                .expect("Unable to place config file.")
+                .to_str()
+                .expect("Failed converting config path to string.")
+                .to_owned();
+
+            if !Path::new(&config_file).exists() {
+                match File::create(&config_file) {
+                    Ok(mut file) => {
+                        let config_content = r#"active = ""
+path = "/path/to/game"
+# mod_root_path = "/mnt/mods/game"
+
+["set1"]
+mods = [
+    "mod1",
+    "mod2",
+    "mod3",
+]
+"#;
+                        file.write_all(config_content.as_bytes()).unwrap();
+                    }
+                    Err(error) => {
+                        eprintln!("Failed to create config file '{}': {}", config_file, error);
+                    }
+                }
+            }
+
             arguments.push(editor);
-            arguments.push(
-                get_xdg_dirs()
-                    .place_config_file(format!("{}.toml", game))
-                    .expect("Unable to place config file.")
-                    .to_str()
-                    .expect("Failed converting config path to string.")
-                    .to_owned(),
-            );
+            arguments.push(config_file);
 
             ExternalCommand::new("editor".to_owned(), arguments, Some(true), None)
                 .run()
