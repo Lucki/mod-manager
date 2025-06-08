@@ -509,8 +509,11 @@ impl Game {
                     Ok(_) => println!("Temporary folder removed successfully"),
                     Err(e) => println!("Error removing temporary folder: {}", e),
                 }
+            },
+            Err(e) => {
+               println!("Error copying folder: {}", e);
+               println!("Your changes are still in the temporary folder, please handle them manually: {:?}", &cache_path);
             }
-            Err(e) => println!("Error copying folder: {}", e),
         }
 
         println!(
