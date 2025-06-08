@@ -142,26 +142,16 @@ impl Game {
                         "Could not get 'mod_root_path' for game '{}': {}",
                         id, error
                     ))
-                })?
-                .canonicalize()
-                .or_else(|error| {
-                    Err(format!(
-                        "Unable to get absolute mod root path for game '{}': {}",
-                        id, error
-                    ))
                 })?;
-                // TODO: Re-evaluate this check
-                if !path.exists() {
-                    return Err(format!(
-                        "'mod_root_path' is not an existing directory for game '{}': {}",
-                        id,
-                        path.display()
-                    ));
-                }
+
                 path
             }
             None => xdg_dirs.get_data_home(),
         };
+
+        if !path.exists() {
+            std::fs::create_dir_all(&path).unwrap();
+        }
 
         let writable = match config.get("writable") {
             Some(value) => value.as_bool().ok_or(format!(
