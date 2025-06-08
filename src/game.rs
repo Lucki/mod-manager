@@ -2,7 +2,8 @@ use rustix::process::{kill_process, Signal};
 use std::collections::HashSet;
 use std::io::{stdin, ErrorKind};
 use std::process::Child;
-use std::{fs, path::PathBuf, str::FromStr, vec};
+use std::{fs, str::FromStr, vec};
+use std::path::{Path, PathBuf};
 use toml::{map::Map, Value};
 use xdg::BaseDirectories;
 
@@ -501,7 +502,7 @@ impl Game {
 
         self.deactivate()?;
 
-        match fs::copy(&cache_path, &new_mod_path) {
+        match copy_dir_all(&cache_path, &new_mod_path) {
             Ok(_) => {
                 println!("Folder copied successfully");
 
@@ -509,16 +510,19 @@ impl Game {
                     Ok(_) => println!("Temporary folder removed successfully"),
                     Err(e) => println!("Error removing temporary folder: {}", e),
                 }
-            }
-            Err(e) => println!("Error copying folder: {}", e),
-        }
 
-        println!(
-            "Your mod files are in '{}'. To apply the mod, add '{}' into a mod set for '{}'.",
-            new_mod_path.display(),
-            new_mod_id,
-            self.id
-        );
+                println!(
+                    "Your mod files are in '{}'. To apply the mod, add '{}' into a mod set for '{}'.",
+                    new_mod_path.display(),
+                    new_mod_id,
+                    self.id
+                );
+            },
+            Err(e) => {
+               println!("Error copying folder: {}", e);
+               println!("Your changes are still in the temporary folder, please handle them manually: {:?}", &cache_path);
+            }
+        }
 
         Ok(())
     }
@@ -899,4 +903,19 @@ mod tests {
 
         return config;
     }
+}
+
+// https://stackoverflow.com/a/65192210
+fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result<()> {
+    fs::create_dir_all(&dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        if ty.is_dir() {
+            copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        } else {
+            fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        }
+    }
+    Ok(())
 }
