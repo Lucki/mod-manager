@@ -160,7 +160,7 @@ impl Game {
                 }
                 path
             }
-            None => xdg_dirs.get_data_file(&id),
+            None => xdg_dirs.get_data_home(),
         };
 
         let writable = match config.get("writable") {
