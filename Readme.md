@@ -109,6 +109,7 @@ Arguments:
   <GAME>  Identifier matching the config file. Can be a new identifier
 
 Options:
+      --path <PATH>  Populates the "path" variable in a new config file
   -h, --help  Print help
 ~~~
 </details>
