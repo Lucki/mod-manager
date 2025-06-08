@@ -150,12 +150,7 @@ fn main() {
                 Err(_) => "vi".to_owned(),
             };
 
-            let config_file = get_xdg_dirs()
-                .place_config_file(format!("{}.toml", game))
-                .expect("Unable to place config file.")
-                .to_str()
-                .expect("Failed converting config path to string.")
-                .to_owned();
+            let config_file = get_config_file_for_id(&game);
 
             if !Path::new(&config_file).exists() {
                 match File::create(&config_file) {
@@ -192,6 +187,24 @@ mods = [
             path: game_path,
             set,
         } => {
+            let config_file = get_config_file_for_id(&game_id);
+
+            if !Path::new(&config_file).exists() {
+                println!(
+                    "Config file for {} doesn't exist yet, creating one…",
+                    game_id
+                );
+
+                let mut arguments: Vec<String> = vec![];
+                arguments.push("mod-manager".to_owned());
+                arguments.push("edit".to_owned());
+                arguments.push(game_id.clone());
+
+                ExternalCommand::new("edit".to_owned(), arguments, Some(true), None)
+                    .run()
+                    .unwrap();
+            }
+
             let game = match game_path {
                 Some(game_path) => Game::new(game_id, game_path).unwrap(),
                 None => Game::from_config_file(game_id, set).unwrap(),
@@ -291,6 +304,16 @@ fn get_game_config_list(xdg: BaseDirectories) -> Vec<PathBuf> {
         None => false,
     });
     config_files
+}
+
+/// Return the config file for a game ID, possible it doesn't exist yet
+fn get_config_file_for_id(game: &str) -> String {
+    get_xdg_dirs()
+        .place_config_file(format!("{}.toml", game))
+        .expect("Unable to place config file.")
+        .to_str()
+        .expect("Failed converting config path to string.")
+        .to_owned()
 }
 
 pub fn get_xdg_dirs() -> BaseDirectories {
