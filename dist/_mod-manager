@@ -67,6 +67,7 @@ __mod-manager-deactivate() {
 __mod-manager-edit() {
     _arguments \
         {-h,--help}'[show help message and exit]' \
+        '--path=::Populates the "path" value in a new config file:_path_files' \
         '1: :__mod-manager-game-identifier'
 
     _message "New game identifier"

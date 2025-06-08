@@ -109,6 +109,7 @@ Arguments:
   <GAME>  Identifier matching the config file. Can be a new identifier
 
 Options:
+      --path <PATH>  Populates the "path" variable in a new config file
   -h, --help  Print help
 ~~~
 </details>
@@ -133,7 +134,8 @@ This directive is a bit special and needs some additional explanation. It is int
 
 1. Two possibilities:
     * The config file doesn't exist yet:<br>
-      The `--path="/path/to/game/files"` argument is needed. A new dummy config file will be created.
+      The configured `$EDITOR` opens with a pre-filled template. Make adjustments and save the file. Upon closing the editor the script continues.
+      The `--path="/path/to/game/files"` argument is optional and will be inserted in the template mentioned above.
     * The config file exists already:<br>
       For this directive the only required value in the config file is the `path = "/to/the/game"`.
 1. Run `mod-manager setup <game-id> <new-mod-name>`

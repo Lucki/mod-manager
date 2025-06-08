@@ -3,6 +3,7 @@ use std::env;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::vec;
 use xdg::BaseDirectories;
 
@@ -51,6 +52,9 @@ enum Action {
     Edit {
         /// Identifier matching the config file. Can be a new identifier.
         game: String,
+        /// Populates the "path" setting for an empty config file.
+        #[clap(long = "path")]
+        path: Option<PathBuf>,
     },
 
     /// Setup and collect changes for a new mod by making changes to the game
@@ -142,7 +146,10 @@ fn main() {
                 }
             }
         }
-        Action::Edit { game } => {
+        Action::Edit {
+            game: game_id,
+            path: game_path,
+        } => {
             let mut arguments: Vec<String> = vec![];
 
             let editor = match env::var("EDITOR") {
@@ -150,18 +157,26 @@ fn main() {
                 Err(_) => "vi".to_owned(),
             };
 
-            let config_file = get_xdg_dirs()
-                .place_config_file(format!("{}.toml", game))
-                .expect("Unable to place config file.")
-                .to_str()
-                .expect("Failed converting config path to string.")
-                .to_owned();
+            let config_file = get_config_file_for_id(&game_id);
 
             if !Path::new(&config_file).exists() {
                 match File::create(&config_file) {
                     Ok(mut file) => {
-                        let config_content = r#"active = ""
-path = "/path/to/game"
+                        let mut path = match PathBuf::from_str(
+                            "/home/username/.local/share/Steam/steamapps/common/game",
+                        ) {
+                            Ok(pathbuf) => pathbuf,
+                            Err(_) => panic!("Failed creating PathBuf!"),
+                        };
+
+                        match game_path {
+                            Some(path_string) => path = path_string,
+                            None => {}
+                        }
+
+                        let config_content = format!(
+                            r#"active = ""
+path = "{}"
 # mod_root_path = "/mnt/mods/game"
 
 ["set1"]
@@ -170,7 +185,10 @@ mods = [
     "mod2",
     "mod3",
 ]
-"#;
+"#,
+                            path.to_string_lossy()
+                        );
+
                         file.write_all(config_content.as_bytes()).unwrap();
                     }
                     Err(error) => {
@@ -192,10 +210,33 @@ mods = [
             path: game_path,
             set,
         } => {
-            let game = match game_path {
-                Some(game_path) => Game::new(game_id, game_path).unwrap(),
-                None => Game::from_config_file(game_id, set).unwrap(),
-            };
+            let config_file = get_config_file_for_id(&game_id);
+
+            if !Path::new(&config_file).exists() {
+                println!(
+                    "Config file for \"{}\" doesn't exist yet, creating one…",
+                    game_id
+                );
+
+                let mut arguments: Vec<String> = vec![];
+                arguments.push("mod-manager".to_owned());
+                arguments.push("edit".to_owned());
+                arguments.push(game_id.clone());
+
+                match game_path {
+                    Some(path) => {
+                        arguments.push(format!("--path={}", path.to_string_lossy()));
+                    }
+                    None => {}
+                }
+
+                // Call own edit function and wait until done editing
+                ExternalCommand::new("edit".to_owned(), arguments, Some(true), None)
+                    .run()
+                    .unwrap();
+            }
+
+            let game = Game::from_config_file(game_id, set).unwrap();
 
             match game.setup(mod_id) {
                 Ok(()) => (),
@@ -291,6 +332,16 @@ fn get_game_config_list(xdg: BaseDirectories) -> Vec<PathBuf> {
         None => false,
     });
     config_files
+}
+
+/// Return the config file for a game ID, possible it doesn't exist yet
+fn get_config_file_for_id(game: &str) -> String {
+    get_xdg_dirs()
+        .place_config_file(format!("{}.toml", game))
+        .expect("Unable to place config file.")
+        .to_str()
+        .expect("Failed converting config path to string.")
+        .to_owned()
 }
 
 pub fn get_xdg_dirs() -> BaseDirectories {
