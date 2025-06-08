@@ -215,13 +215,15 @@ impl Game {
             Some(tree) => {
                 let mut s = "".to_owned();
                 tree.get_mount_string(&mut s);
-                let m = moved_path
-                    .to_str()
-                    .ok_or(format!(
-                        "Failed to convert '{}' to a string",
-                        moved_path.display()
-                    ))?
-                    .replace(":", r#"\:"#);
+                let m = escape_special_mount_chars(
+                    moved_path
+                        .to_str()
+                        .ok_or(format!(
+                            "Failed to convert '{}' to a string",
+                            moved_path.display()
+                        ))?
+                        .to_owned(),
+                );
 
                 if s == "" {
                     format!("x-gvfs-hide,comment=x-gvfs-hide,lowerdir={}", m)
@@ -231,13 +233,15 @@ impl Game {
             }
             None => format!(
                 "x-gvfs-hide,comment=x-gvfs-hide,lowerdir={}",
-                moved_path
-                    .to_str()
-                    .ok_or(format!(
-                        "Failed to convert '{}' to a string",
-                        moved_path.display()
-                    ))?
-                    .replace(":", r#"\:"#)
+                escape_special_mount_chars(
+                    moved_path
+                        .to_str()
+                        .ok_or(format!(
+                            "Failed to convert '{}' to a string",
+                            moved_path.display()
+                        ))?
+                        .to_owned()
+                )
             ),
         };
 
@@ -625,14 +629,16 @@ impl Game {
             mount_string = format!(
                 "{}:{}",
                 mount_string,
-                dummy
-                    .to_str()
-                    .ok_or(format!(
-                        "Failed converting string '{}' for game '{}' cache directory",
-                        dummy.display(),
-                        self.id
-                    ))?
-                    .replace(":", r#"\:"#)
+                escape_special_mount_chars(
+                    dummy
+                        .to_str()
+                        .ok_or(format!(
+                            "Failed converting string '{}' for game '{}' cache directory",
+                            dummy.display(),
+                            self.id
+                        ))?
+                        .to_owned()
+                )
             );
         }
 
@@ -764,6 +770,10 @@ impl Game {
         return BaseDirectories::with_prefix(format!("mod-manager/{}", id))
             .or_else(|error| return Err(format!("Couldn't get user directories: {}", error)));
     }
+}
+
+fn escape_special_mount_chars(string: String) -> String {
+    string.replace(":", r#"\:"#).replace(",", r#"\,"#)
 }
 
 #[cfg(test)]

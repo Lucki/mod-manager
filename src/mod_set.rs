@@ -212,12 +212,13 @@ impl ModSet {
                     set.get_mount_string(mount_string);
                 }
                 None => {
-                    let mod_path = self
-                        .root_path
-                        .join(&mod_name)
-                        .to_str()
-                        .expect("Unable to get string version of PathBuf.")
-                        .replace(":", r#"\:"#);
+                    let mod_path = escape_special_mount_chars(
+                        self.root_path
+                            .join(&mod_name)
+                            .to_str()
+                            .expect("Unable to get string version of PathBuf.")
+                            .to_owned(),
+                    );
 
                     if !mount_string.contains(&mod_path) {
                         // mount_string = &mut format!("{}:{}", &mount_string, mod_path);
@@ -257,6 +258,10 @@ impl ModSet {
 
         return false;
     }
+}
+
+fn escape_special_mount_chars(string: String) -> String {
+    string.replace(":", r#"\:"#).replace(",", r#"\,"#)
 }
 
 #[cfg(test)]
