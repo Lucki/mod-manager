@@ -1,6 +1,6 @@
 active = "set1"
-path = "game: asd"          # we fill this in tests
-mod_root_path = "mod: root" # we fill this in tests
+path = "game, asd"          # we fill this in tests
+mod_root_path = "mod, root" # we fill this in tests
 
 # upper overwrites lower
 ["set1"]
@@ -9,7 +9,7 @@ run_pre_command = true
 mods = [
     "mod 1",
     "mod 2",
-    "mod: 3",
+    "mod, 3",
     "set2",
 ]
 # command = "cmd_test" # Special command test

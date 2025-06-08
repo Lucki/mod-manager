@@ -211,7 +211,8 @@ impl Game {
             None => None,
         };
 
-        let mount_options = match &mod_tree {
+        let mut mount_options = "x-gvfs-hide,comment=x-gvfs-hide".to_owned();
+        match &mod_tree {
             Some(tree) => {
                 let mut s = "".to_owned();
                 tree.get_mount_string(&mut s);
@@ -225,24 +226,25 @@ impl Game {
                         .to_owned(),
                 );
 
-                if s == "" {
-                    format!("x-gvfs-hide,comment=x-gvfs-hide,lowerdir={}", m)
-                } else {
-                    format!("x-gvfs-hide,comment=x-gvfs-hide,lowerdir={}:{}", s, m)
+                if !s.is_empty() {
+                    mount_options.push_str(&s);
                 }
+                mount_options.push_str(&format!(",lowerdir+={}", m));
             }
-            None => format!(
-                "x-gvfs-hide,comment=x-gvfs-hide,lowerdir={}",
-                escape_special_mount_chars(
-                    moved_path
-                        .to_str()
-                        .ok_or(format!(
-                            "Failed to convert '{}' to a string",
-                            moved_path.display()
-                        ))?
-                        .to_owned()
-                )
-            ),
+            None => {
+                mount_options.push_str(&format!(
+                    ",lowerdir+={}",
+                    escape_special_mount_chars(
+                        moved_path
+                            .to_str()
+                            .ok_or(format!(
+                                "Failed to convert '{}' to a string",
+                                moved_path.display()
+                            ))?
+                            .to_owned()
+                    )
+                ));
+            }
         };
 
         let overlay = Overlay::new(id.clone(), path.clone(), moved_path.clone());
@@ -627,7 +629,7 @@ impl Game {
                 })?;
 
             mount_string = format!(
-                "{}:{}",
+                "{},lowerdir+={}",
                 mount_string,
                 escape_special_mount_chars(
                     dummy
@@ -773,7 +775,7 @@ impl Game {
 }
 
 fn escape_special_mount_chars(string: String) -> String {
-    string.replace(":", r#"\:"#).replace(",", r#"\,"#)
+    string.replace(",", r#"\,"#)
 }
 
 #[cfg(test)]
@@ -782,7 +784,7 @@ mod tests {
 
     #[test]
     fn create_empty_config() {
-        let id = String::from("test: game");
+        let id = String::from("test, game");
         let xdg_dirs = BaseDirectories::with_prefix(format!("mod-manager")).unwrap();
         let game_path = PathBuf::from(String::from("test/game"));
         let config_name = format!("{}.toml", id);
@@ -807,35 +809,35 @@ mod tests {
     #[test]
     fn mount_path_default_set() {
         let config = get_test_config();
-        let game = Game::from_config("test: game".to_string(), None, config).unwrap();
+        let game = Game::from_config("test, game".to_string(), None, config).unwrap();
         let mount_string = game.get_mount_string(false, false).unwrap();
 
-        let game_path = PathBuf::from(String::from("test/game: asd"))
+        let game_path = PathBuf::from(String::from("test/game, asd"))
             .canonicalize()
             .unwrap()
             .to_str()
             .unwrap()
-            .replace(":", r#"\:"#);
-        let root_path = PathBuf::from(String::from("test/mod: root"))
+            .replace(",", r#"\,"#);
+        let root_path = PathBuf::from(String::from("test/mod, root"))
             .canonicalize()
             .unwrap();
         let mod1_path = root_path
             .join("mod 1")
             .to_str()
             .unwrap()
-            .replace(":", r#"\:"#);
+            .replace(",", r#"\,"#);
         let mod2_path = root_path
             .join("mod 2")
             .to_str()
             .unwrap()
-            .replace(":", r#"\:"#);
+            .replace(",", r#"\,"#);
         let mod3_path = root_path
-            .join("mod: 3")
+            .join("mod, 3")
             .to_str()
             .unwrap()
-            .replace(":", r#"\:"#);
+            .replace(",", r#"\,"#);
         let mnt_string = format!(
-            "x-gvfs-hide,comment=x-gvfs-hide,lowerdir={}:{}:{}:{}_mod-manager",
+            "x-gvfs-hide,comment=x-gvfs-hide,lowerdir+={},lowerdir+={},lowerdir+={},lowerdir+={}_mod-manager",
             mod1_path, mod2_path, mod3_path, game_path
         );
 
@@ -846,25 +848,25 @@ mod tests {
     fn mount_path_set_override() {
         let config = get_test_config();
         let game =
-            Game::from_config("test: game".to_string(), Some("set2".to_string()), config).unwrap();
+            Game::from_config("test, game".to_string(), Some("set2".to_string()), config).unwrap();
         let mount_string = game.get_mount_string(false, false).unwrap();
 
-        let game_path = PathBuf::from(String::from("test/game: asd"))
+        let game_path = PathBuf::from(String::from("test/game, asd"))
             .canonicalize()
             .unwrap()
             .to_str()
             .unwrap()
-            .replace(":", r#"\:"#);
-        let root_path = PathBuf::from(String::from("test/mod: root"))
+            .replace(",", r#"\,"#);
+        let root_path = PathBuf::from(String::from("test/mod, root"))
             .canonicalize()
             .unwrap();
         let mod1_path = root_path
             .join("mod 1")
             .to_str()
             .unwrap()
-            .replace(":", r#"\:"#);
+            .replace(",", r#"\,"#);
         let mnt_string = format!(
-            "x-gvfs-hide,comment=x-gvfs-hide,lowerdir={}:{}_mod-manager",
+            "x-gvfs-hide,comment=x-gvfs-hide,lowerdir+={},lowerdir+={}_mod-manager",
             mod1_path, game_path
         );
 
@@ -875,24 +877,24 @@ mod tests {
     fn mount_path_empty_set_override() {
         let config = get_test_config();
         let game =
-            Game::from_config("test: game".to_string(), Some("".to_string()), config).unwrap();
+            Game::from_config("test, game".to_string(), Some("".to_string()), config).unwrap();
         let mount_string = game.get_mount_string(false, false).unwrap();
 
-        let game_path = PathBuf::from(String::from("test/game: asd"))
+        let game_path = PathBuf::from(String::from("test/game, asd"))
             .canonicalize()
             .unwrap()
             .to_str()
             .unwrap()
-            .replace(":", r#"\:"#);
+            .replace(",", r#"\,"#);
         let cache_path = game
             .xdg_dirs
             .get_cache_home()
             .join("mod-manager_empty_dummy")
             .to_str()
             .unwrap()
-            .replace(":", r#"\:"#);
+            .replace(",", r#"\,"#);
         let mnt_string = format!(
-            "x-gvfs-hide,comment=x-gvfs-hide,lowerdir={}_mod-manager:{}",
+            "x-gvfs-hide,comment=x-gvfs-hide,lowerdir+={}_mod-manager,lowerdir+={}",
             game_path, cache_path
         );
 
@@ -901,8 +903,8 @@ mod tests {
 
     fn get_test_config() -> toml::map::Map<String, toml::Value> {
         let config_file = PathBuf::from("./test/test.toml");
-        let game_path = PathBuf::from("./test/game: asd");
-        let mod_root = PathBuf::from("./test/mod: root");
+        let game_path = PathBuf::from("./test/game, asd");
+        let mod_root = PathBuf::from("./test/mod, root");
         let mut config = fs::read_to_string(&config_file)
             .unwrap()
             .parse::<Value>()
