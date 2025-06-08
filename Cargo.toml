@@ -14,3 +14,4 @@ toml = "*"
 xdg = "*"
 rustix = { version = "*", features = ["process"] }
 clap = { version = "4.0", features = ["derive"] }
+open = "*"
