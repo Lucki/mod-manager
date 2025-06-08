@@ -70,7 +70,12 @@ impl Overlay {
         if self.is_mounted()? {
             // Check if the temporary path exists
             if !self.moved_path.is_dir() {
-                return Err(format!("'{}' is in an invalid overlay mount state: '{}' is mounted, but '{}' does not exist", self.game_id, self.path.display(), self.moved_path.display()));
+                return Err(format!(
+                    "'{}' is in an invalid overlay mount state: '{}' is mounted, but '{}' does not exist",
+                    self.game_id,
+                    self.path.display(),
+                    self.moved_path.display()
+                ));
             }
 
             // Check if the temporary path is empty
@@ -94,7 +99,12 @@ impl Overlay {
         if is_directory_empty(&self.path) {
             // Check if the temporary path exists
             if !self.moved_path.is_dir() {
-                return Err(format!("'{}' is in an invalid overlay mount state: '{}' is empty and '{}' does not exist", self.game_id, self.path.display(), self.moved_path.display()));
+                return Err(format!(
+                    "'{}' is in an invalid overlay mount state: '{}' is empty and '{}' does not exist",
+                    self.game_id,
+                    self.path.display(),
+                    self.moved_path.display()
+                ));
             }
 
             // Check if the temporary path is empty

@@ -1,17 +1,17 @@
-use rustix::process::{kill_process, Signal};
+use rustix::process::{Signal, kill_process};
 use std::collections::HashSet;
-use std::io::{stdin, ErrorKind};
+use std::io::{ErrorKind, stdin};
+use std::path::{Path, PathBuf};
 use std::process::Child;
 use std::{fs, str::FromStr, vec};
-use std::path::{Path, PathBuf};
-use toml::{map::Map, Value};
+use toml::{Value, map::Map};
 use xdg::BaseDirectories;
 
+use crate::ExternalCommand;
 use crate::get_xdg_dirs;
 use crate::mod_set::ModSet;
 use crate::overlay::MountState;
 use crate::overlay::Overlay;
-use crate::ExternalCommand;
 
 pub struct Game {
     pub id: String,
@@ -390,7 +390,7 @@ impl Game {
             MountState::MOUNTED => match self.overlay.unmount() {
                 Ok(_) => {}
                 Err(error) => {
-                    return Err(format!("Unable to unmount game '{}': {}", self.id, error))
+                    return Err(format!("Unable to unmount game '{}': {}", self.id, error));
                 }
             },
             MountState::UNKNOWN => {
@@ -416,7 +416,7 @@ impl Game {
                             self.id,
                             self.path.display(),
                             e
-                        ))
+                        ));
                     }
                 },
             }
@@ -492,8 +492,10 @@ impl Game {
         self.activate(true, true)?;
 
         let mut line = String::new();
-        println!("Make the required changes to the game folder: '{}'\nE.g. installing an addon or placing mod files into the folder structure.\nPress Enter here when done setting up.\n",
-            self.path.display());
+        println!(
+            "Make the required changes to the game folder: '{}'\nE.g. installing an addon or placing mod files into the folder structure.\nPress Enter here when done setting up.\n",
+            self.path.display()
+        );
 
         match stdin().read_line(&mut line) {
             Ok(_) => (),
@@ -517,10 +519,13 @@ impl Game {
                     new_mod_id,
                     self.id
                 );
-            },
+            }
             Err(e) => {
-               println!("Error copying folder: {}", e);
-               println!("Your changes are still in the temporary folder, please handle them manually: {:?}", &cache_path);
+                println!("Error copying folder: {}", e);
+                println!(
+                    "Your changes are still in the temporary folder, please handle them manually: {:?}",
+                    &cache_path
+                );
             }
         }
 
@@ -590,7 +595,7 @@ impl Game {
                     return Err(format!(
                         "Unable to clean the workdir for game '{}': {}",
                         self.id, error
-                    ))
+                    ));
                 }
             }
 
@@ -657,7 +662,10 @@ impl Game {
         match self.xdg_dirs.create_runtime_directory("") {
             Ok(_) => (),
             Err(error) => {
-                println!("Could not create runtime directory for game '{}': {}\nNo pre commands were started.", self.id, error);
+                println!(
+                    "Could not create runtime directory for game '{}': {}\nNo pre commands were started.",
+                    self.id, error
+                );
                 return;
             }
         }
@@ -736,7 +744,10 @@ impl Game {
             let pid_file = match self.xdg_dirs.place_runtime_file(format!("{}", pid)) {
                 Ok(path) => path,
                 Err(error) => {
-                    println!("Failed to get PID of process '{}' for game '{}': {}\nThe process won't be terminated when deactivating.", pid, self.id, error);
+                    println!(
+                        "Failed to get PID of process '{}' for game '{}': {}\nThe process won't be terminated when deactivating.",
+                        pid, self.id, error
+                    );
                     continue;
                 }
             };
@@ -744,7 +755,10 @@ impl Game {
             match std::fs::write(pid_file, "") {
                 Ok(()) => {}
                 Err(error) => {
-                    println!("Could not write PID file for process '{}' for game '{}': {}\nThe process won't be terminated when deactivating.", pid, self.id, error);
+                    println!(
+                        "Could not write PID file for process '{}' for game '{}': {}\nThe process won't be terminated when deactivating.",
+                        pid, self.id, error
+                    );
                     continue;
                 }
             }
