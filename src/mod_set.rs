@@ -2,7 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
 };
-use toml::{map::Map, Value};
+use toml::{Value, map::Map};
 
 use crate::ExternalCommand;
 
@@ -68,7 +68,10 @@ impl ModSet {
                     ))?;
 
                     if visited.contains(&mod_name.to_string()) {
-                        return Err(format!("Recursion detected in set `{}` of game `{}`: it already contains `{}`.", set_id, game_id, mod_name));
+                        return Err(format!(
+                            "Recursion detected in set `{}` of game `{}`: it already contains `{}`.",
+                            set_id, game_id, mod_name
+                        ));
                     }
                     visited.insert(mod_name.to_string());
 
@@ -289,15 +292,17 @@ mod tests {
             .canonicalize()
             .unwrap();
 
-        assert!(ModSet::from_config(
-            "set1",
-            &set_config,
-            "test_game".to_owned(),
-            &game_config,
-            root_path,
-            &mut HashSet::new()
-        )
-        .is_ok());
+        assert!(
+            ModSet::from_config(
+                "set1",
+                &set_config,
+                "test_game".to_owned(),
+                &game_config,
+                root_path,
+                &mut HashSet::new()
+            )
+            .is_ok()
+        );
     }
 
     #[test]
@@ -316,15 +321,17 @@ mod tests {
             .canonicalize()
             .unwrap();
 
-        assert!(ModSet::from_config(
-            "set1",
-            &set_config,
-            "test_game".to_owned(),
-            &game_config,
-            root_path,
-            &mut HashSet::new()
-        )
-        .is_err());
+        assert!(
+            ModSet::from_config(
+                "set1",
+                &set_config,
+                "test_game".to_owned(),
+                &game_config,
+                root_path,
+                &mut HashSet::new()
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -341,15 +348,17 @@ mod tests {
             .canonicalize()
             .unwrap();
 
-        assert!(ModSet::from_config(
-            "set1",
-            &set_config,
-            "test_game".to_owned(),
-            &game_config,
-            root_path,
-            &mut HashSet::new()
-        )
-        .is_err());
+        assert!(
+            ModSet::from_config(
+                "set1",
+                &set_config,
+                "test_game".to_owned(),
+                &game_config,
+                root_path,
+                &mut HashSet::new()
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -367,15 +376,17 @@ mod tests {
             .canonicalize()
             .unwrap();
 
-        assert!(ModSet::from_config(
-            "set1",
-            &set_config,
-            "test_game".to_owned(),
-            &game_config,
-            root_path,
-            &mut HashSet::new()
-        )
-        .is_err());
+        assert!(
+            ModSet::from_config(
+                "set1",
+                &set_config,
+                "test_game".to_owned(),
+                &game_config,
+                root_path,
+                &mut HashSet::new()
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -392,15 +403,17 @@ mod tests {
             .canonicalize()
             .unwrap();
 
-        assert!(ModSet::from_config(
-            "set1",
-            &set_config,
-            "test_game".to_owned(),
-            &game_config,
-            root_path,
-            &mut HashSet::new()
-        )
-        .is_err());
+        assert!(
+            ModSet::from_config(
+                "set1",
+                &set_config,
+                "test_game".to_owned(),
+                &game_config,
+                root_path,
+                &mut HashSet::new()
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -418,15 +431,17 @@ mod tests {
             .canonicalize()
             .unwrap();
 
-        assert!(ModSet::from_config(
-            "set1",
-            &set_config,
-            "test_game".to_owned(),
-            &game_config,
-            root_path,
-            &mut HashSet::new()
-        )
-        .is_err());
+        assert!(
+            ModSet::from_config(
+                "set1",
+                &set_config,
+                "test_game".to_owned(),
+                &game_config,
+                root_path,
+                &mut HashSet::new()
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -450,15 +465,17 @@ mod tests {
             .canonicalize()
             .unwrap();
 
-        assert!(ModSet::from_config(
-            "set1",
-            &set_config,
-            "test_game".to_owned(),
-            &game_config,
-            root_path,
-            &mut HashSet::new()
-        )
-        .is_err());
+        assert!(
+            ModSet::from_config(
+                "set1",
+                &set_config,
+                "test_game".to_owned(),
+                &game_config,
+                root_path,
+                &mut HashSet::new()
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -476,15 +493,17 @@ mod tests {
             .canonicalize()
             .unwrap();
 
-        assert!(ModSet::from_config(
-            "set1",
-            &set_config,
-            "test_game".to_owned(),
-            &game_config,
-            root_path,
-            &mut HashSet::new()
-        )
-        .is_err());
+        assert!(
+            ModSet::from_config(
+                "set1",
+                &set_config,
+                "test_game".to_owned(),
+                &game_config,
+                root_path,
+                &mut HashSet::new()
+            )
+            .is_err()
+        );
     }
 
     #[test]
