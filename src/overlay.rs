@@ -1,6 +1,6 @@
 use std::{
     env::{current_dir, set_current_dir},
-    fs,
+    fmt, fs,
     path::{Path, PathBuf},
     process::Command,
     thread,
@@ -18,6 +18,53 @@ pub enum MountState {
     MOVED,
     /// Known bad mount state
     INVALID,
+}
+
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub enum OverlayErrorKind {
+    /// The overlay is still in use
+    USED,
+    /// The umount process encountered an error
+    UMOUNT,
+    /// Process execution failed
+    PROCESS,
+}
+
+#[derive(Debug, Clone)]
+pub struct OverlayError {
+    kind: OverlayErrorKind,
+    overlay: String,
+    message: String,
+}
+
+impl OverlayError {
+    pub fn kind(&self) -> OverlayErrorKind {
+        return self.kind.clone();
+    }
+
+    pub fn message(self) -> String {
+        return self.message;
+    }
+}
+
+impl fmt::Display for OverlayError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let err_msg = match self.kind {
+            OverlayErrorKind::USED => format!(
+                "Unmounting failed, the overlay '{}' is still in use.",
+                self.overlay
+            ),
+            OverlayErrorKind::UMOUNT => {
+                format!(
+                    "The unmounting helper process encountered an error: {}",
+                    self.message
+                )
+            }
+            OverlayErrorKind::PROCESS => format!("Error running process: {}", self.message),
+        };
+
+        write!(f, "{}", err_msg)
+    }
 }
 
 pub struct Overlay {
@@ -236,17 +283,41 @@ impl Overlay {
         Ok(())
     }
 
-    pub fn unmount(&self) -> Result<(), String> {
+    pub fn unmount(&self) -> Result<(), OverlayError> {
         // Make sure we're not blocking ourself by cwd == mount_point
         self.change_cwd(false).or_else(|error| {
-            return Err(format!(
-                "Could not change the current working directory for game '{}': {}",
-                self.game_id, error
-            ));
+            return Err(OverlayError {
+                kind: OverlayErrorKind::PROCESS,
+                overlay: self.game_id.clone(),
+                message: format!("Could not change the current working directory: {}", error),
+            });
         })?;
 
         // Wait some time to register we're in another cwd before trying to unmount
         thread::sleep(std::time::Duration::from_secs(1));
+
+        // Check if programs are blocking unmount
+        match Command::new("lsof")
+            .arg("+f")
+            .arg("--")
+            .arg(&self.game_id)
+            .status()
+        {
+            Ok(status) => {
+                // lsof returns 0 if it found programs using the mountpoint
+                if status.success() {
+                    return Err(OverlayError {
+                        kind: OverlayErrorKind::USED,
+                        overlay: self.game_id.clone(),
+                        message: String::from("Unmounting failed, the overlay is still in use."),
+                    });
+                }
+            }
+            Err(error) => {
+                println!("Failed checking for programs using the overlay: {}", error);
+                println!("Trying to continue anyway…");
+            }
+        }
 
         match Command::new("pkexec")
             .arg("mod-manager-overlayfs-helper")
@@ -256,20 +327,19 @@ impl Overlay {
         {
             Ok(status) => {
                 if !status.success() {
-                    return Err(format!(
-                        "Mod manager overlayfs helper umount failed: {}",
-                        status
-                            .code()
-                            .ok_or(format!(
-                                "Failed converting status code to string for game '{}'",
-                                self.game_id
-                            ))?
-                            .to_string()
-                    ));
+                    return Err(OverlayError {
+                        kind: OverlayErrorKind::UMOUNT,
+                        overlay: self.game_id.clone(),
+                        message: format!("{:?}", status.code()),
+                    });
                 }
             }
             Err(error) => {
-                return Err(format!("Unable to run umount process: {}", error));
+                return Err(OverlayError {
+                    kind: OverlayErrorKind::PROCESS,
+                    overlay: self.game_id.clone(),
+                    message: format!("Failed executing the helper process: {}", error),
+                });
             }
         }
 

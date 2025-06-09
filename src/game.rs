@@ -1,5 +1,6 @@
 use rustix::process::{Signal, kill_process};
 use std::collections::HashSet;
+use std::fmt;
 use std::io::{ErrorKind, stdin};
 use std::path::{Path, PathBuf};
 use std::process::Child;
@@ -10,8 +11,25 @@ use xdg::BaseDirectories;
 use crate::ExternalCommand;
 use crate::get_xdg_dirs;
 use crate::mod_set::ModSet;
-use crate::overlay::MountState;
 use crate::overlay::Overlay;
+use crate::overlay::{MountState, OverlayErrorKind};
+
+#[derive(Debug, Clone)]
+pub struct GameError {
+    kind: String,
+    id: String,
+    message: String,
+}
+
+impl fmt::Display for GameError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "GameError {{ kind: {}, overlay: {}, message: {} }}",
+            self.kind, self.id, self.message
+        )
+    }
+}
 
 pub struct Game {
     pub id: String,
@@ -268,7 +286,8 @@ impl Game {
     pub fn activate(&self, writable: bool, is_setup: bool) -> Result<(), String> {
         // Re-mount in case the mod set has changed
         if self.overlay.get_current_mounting_state()? == MountState::MOUNTED {
-            self.deactivate()?;
+            self.deactivate()
+                .or_else(|e| Err(format!("Error deactivating overlay: {}", e)))?;
         }
 
         if self.overlay.get_current_mounting_state()? == MountState::NORMAL {
@@ -319,7 +338,7 @@ impl Game {
         return Ok(());
     }
 
-    pub fn deactivate(&self) -> Result<(), String> {
+    pub fn deactivate(&self) -> Result<(), GameError> {
         let runtime_files = self.xdg_dirs.list_runtime_files("");
 
         for runtime_file in runtime_files {
@@ -379,59 +398,100 @@ impl Game {
             }
         }
 
-        match self.overlay.get_current_mounting_state()? {
+        match self.overlay.get_current_mounting_state().or_else(|e| {
+            Err(GameError {
+                kind: String::from("overlay"),
+                id: self.id.clone(),
+                message: format!("Error getting current mount state: {}", e),
+            })
+        })? {
             MountState::NORMAL => {
                 return Ok(());
             }
             MountState::MOUNTED => match self.overlay.unmount() {
                 Ok(_) => {}
                 Err(error) => {
-                    return Err(format!("Unable to unmount game '{}': {}", self.id, error));
+                    if error.kind() == OverlayErrorKind::USED {
+                        return Err(GameError {
+                            kind: String::from("Overlay in use."),
+                            id: self.id.clone(),
+                            message: error.message(),
+                        });
+                    }
+                    return Err(GameError {
+                        kind: String::from("overlay"),
+                        id: self.id.clone(),
+                        message: error.message(),
+                    });
                 }
             },
             MountState::UNKNOWN => {
-                return Err(format!(
-                    "Unable to retrieve the current mounting state for game '{}'.",
-                    self.id
-                ));
+                return Err(GameError {
+                    kind: String::from("overlay"),
+                    id: self.id.clone(),
+                    message: String::from(
+                        "Unable to retrieve the current mounting state for the game.",
+                    ),
+                });
             }
             MountState::INVALID => {
-                return Err(format!("Game '{}' is in an invalid mount state.", self.id));
+                return Err(GameError {
+                    kind: String::from("overlay"),
+                    id: self.id.clone(),
+                    message: String::from("The game is in an invalid mounting state."),
+                });
             }
             MountState::MOVED => {}
         }
 
-        if self.overlay.get_current_mounting_state()? == MountState::MOVED {
+        if self.overlay.get_current_mounting_state().or_else(|e| {
+            Err(GameError {
+                kind: String::from("overlay"),
+                id: self.id.clone(),
+                message: format!("Error getting current mount state: {}", e),
+            })
+        })? == MountState::MOVED
+        {
             match fs::remove_dir(&self.path) {
                 Ok(_) => (),
                 Err(e) => match e.kind() {
                     ErrorKind::NotFound => (),
                     _ => {
-                        return Err(format!(
-                            "Unable to remove the empty game '{}' directory '{}': {}.",
-                            self.id,
-                            self.path.display(),
-                            e
-                        ));
+                        return Err(GameError {
+                            kind: String::from("fs"),
+                            id: self.id.clone(),
+                            message: format!(
+                                "Unable to remove the empty game directory '{}': {}.",
+                                self.path.display(),
+                                e
+                            ),
+                        });
                     }
                 },
             }
 
             fs::rename(&self.moved_path, &self.path).or_else(|error| {
-                Err(format!(
-                    "Unable to move the game '{}' back to it's original location: {}",
-                    self.id, error
-                ))
+                Err(GameError {
+                    kind: String::from("fs"),
+                    id: self.id.clone(),
+                    message: format!(
+                        "Unable to move game files back to it's original location: {}",
+                        error
+                    ),
+                })
             })?;
         }
 
         self.overlay.change_cwd(true).or_else(|error| {
-            return Err(format!(
-                "Could not change the current working directory for '{}' to '{}': {}",
-                self.id,
-                self.path.display(),
-                error
-            ));
+            Err(GameError {
+                kind: String::from("process"),
+                id: self.id.clone(),
+                message: format!(
+                    "Unable to change current working directory to {}: {}",
+                    self.path.display(),
+                    error
+                ),
+            })
         })?;
 
         Ok(())
@@ -450,7 +510,8 @@ impl Game {
             }
         }
 
-        self.deactivate()?;
+        self.deactivate()
+            .or_else(|e| Err(format!("Error deactivating overlay: {}", e)))?;
 
         Ok(())
     }
@@ -503,7 +564,25 @@ impl Game {
             Err(error) => println!("Reading of stdin failed: {}", error),
         }
 
-        self.deactivate()?;
+        while match self.deactivate() {
+            Ok(_) => false,
+            Err(e) => {
+                if e.kind == String::from("Overlay in use.") {
+                    true
+                } else {
+                    return Err(format!("{}", e));
+                }
+            }
+        } {
+            println!(
+                "The overlay is currently in use. Please close the listed programs and press Enter again."
+            );
+
+            match stdin().read_line(&mut line) {
+                Ok(_) => (),
+                Err(error) => println!("Reading of stdin failed: {}", error),
+            }
+        }
 
         match copy_dir_all(&cache_path, &new_mod_path) {
             Ok(_) => {
