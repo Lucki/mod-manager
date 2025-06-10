@@ -285,12 +285,26 @@ impl Game {
 
     pub fn activate(&self, writable: bool, is_setup: bool) -> Result<(), String> {
         // Re-mount in case the mod set has changed
-        if self.overlay.get_current_mounting_state()? == MountState::MOUNTED {
+        if self.overlay.get_current_mounting_state().or_else(|e| {
+            Err(format!(
+                "Failed validating the mounting state for '{}': {}",
+                e.overlay(),
+                e.message()
+            ))
+        })? == MountState::Mounted
+        {
             self.deactivate()
                 .or_else(|e| Err(format!("Error deactivating overlay: {}", e)))?;
         }
 
-        if self.overlay.get_current_mounting_state()? == MountState::NORMAL {
+        if self.overlay.get_current_mounting_state().or_else(|e| {
+            Err(format!(
+                "Failed validating the mounting state for '{}': {}",
+                e.overlay(),
+                e.message()
+            ))
+        })? == MountState::Normal
+        {
             // Move path to mounted_path
             fs::rename(&self.path, &self.moved_path).or_else(|e| {
                 Err(format!(
@@ -301,7 +315,14 @@ impl Game {
         }
 
         // Check if we're good to go, panic if not
-        if self.overlay.get_current_mounting_state()? != MountState::MOVED {
+        if self.overlay.get_current_mounting_state().or_else(|e| {
+            Err(format!(
+                "Failed validating the mounting state for '{}': {}",
+                e.overlay(),
+                e.message()
+            ))
+        })? != MountState::Moved
+        {
             return Err(format!(
                 "Game '{}' is in an unexpected mounting state, aborting",
                 &self.id
@@ -405,13 +426,13 @@ impl Game {
                 message: format!("Error getting current mount state: {}", e),
             })
         })? {
-            MountState::NORMAL => {
+            MountState::Normal => {
                 return Ok(());
             }
-            MountState::MOUNTED => match self.overlay.unmount() {
+            MountState::Mounted => match self.overlay.unmount() {
                 Ok(_) => {}
                 Err(error) => {
-                    if error.kind() == OverlayErrorKind::USED {
+                    if error.kind() == OverlayErrorKind::Used {
                         return Err(GameError {
                             kind: String::from("Overlay in use."),
                             id: self.id.clone(),
@@ -425,7 +446,7 @@ impl Game {
                     });
                 }
             },
-            MountState::UNKNOWN => {
+            MountState::Unknown => {
                 return Err(GameError {
                     kind: String::from("overlay"),
                     id: self.id.clone(),
@@ -434,14 +455,14 @@ impl Game {
                     ),
                 });
             }
-            MountState::INVALID => {
+            MountState::Invalid => {
                 return Err(GameError {
                     kind: String::from("overlay"),
                     id: self.id.clone(),
                     message: String::from("The game is in an invalid mounting state."),
                 });
             }
-            MountState::MOVED => {}
+            MountState::Moved => {}
         }
 
         if self.overlay.get_current_mounting_state().or_else(|e| {
@@ -450,7 +471,7 @@ impl Game {
                 id: self.id.clone(),
                 message: format!("Error getting current mount state: {}", e),
             })
-        })? == MountState::MOVED
+        })? == MountState::Moved
         {
             match fs::remove_dir(&self.path) {
                 Ok(_) => (),

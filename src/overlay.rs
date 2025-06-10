@@ -9,25 +9,29 @@ use std::{
 #[derive(PartialEq, Eq, Debug)]
 pub enum MountState {
     /// Unknown mount state
-    UNKNOWN,
+    Unknown,
     /// Files are in the original path and the temporary path doesn't exist yet
-    NORMAL,
+    Normal,
     /// Overlay is mounted at the original path and the files are in the temporary path
-    MOUNTED,
+    Mounted,
     /// Original path doesn't exist and the files are in the temporary path
-    MOVED,
+    Moved,
     /// Known bad mount state
-    INVALID,
+    Invalid,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum OverlayErrorKind {
     /// The overlay is still in use
-    USED,
-    /// The umount process encountered an error
-    UMOUNT,
+    Used,
+    /// The mount process encountered an error
+    Mount,
     /// Process execution failed
-    PROCESS,
+    Process,
+    /// The overlay is in an invalid mount state
+    MountState,
+    /// String conversion error
+    String,
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +46,10 @@ impl OverlayError {
         return self.kind.clone();
     }
 
+    pub fn overlay(&self) -> String {
+        return self.overlay.clone();
+    }
+
     pub fn message(self) -> String {
         return self.message;
     }
@@ -50,17 +58,24 @@ impl OverlayError {
 impl fmt::Display for OverlayError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let err_msg = match self.kind {
-            OverlayErrorKind::USED => format!(
+            OverlayErrorKind::Used => format!(
                 "Unmounting failed, the overlay '{}' is still in use.",
                 self.overlay
             ),
-            OverlayErrorKind::UMOUNT => {
+            OverlayErrorKind::Mount => {
                 format!(
-                    "The unmounting helper process encountered an error: {}",
+                    "The mounting helper process encountered an error: {}",
                     self.message
                 )
             }
-            OverlayErrorKind::PROCESS => format!("Error running process: {}", self.message),
+            OverlayErrorKind::Process => format!("Error running process: {}", self.message),
+            OverlayErrorKind::MountState => format!(
+                "'{}' is in an invalid mounting state: {}",
+                self.overlay, self.message
+            ),
+            OverlayErrorKind::String => {
+                format!("Unable to convert string: {}", self.message)
+            }
         };
 
         write!(f, "{}", err_msg)
@@ -84,30 +99,36 @@ impl Overlay {
         }
     }
 
-    pub fn get_current_mounting_state(&self) -> Result<MountState, String> {
+    pub fn get_current_mounting_state(&self) -> Result<MountState, OverlayError> {
         // Check if the original path exists
         if !self.path.is_dir() {
             // Check if the temporary path exists
             if !self.moved_path.is_dir() {
-                return Err(format!(
-                    "'{}' is in an invalid overlay mount state: '{}' AND '{}' do not exist",
-                    self.game_id,
-                    self.path.display(),
-                    self.moved_path.display()
-                ));
+                return Err(OverlayError {
+                    kind: OverlayErrorKind::MountState,
+                    overlay: self.game_id.clone(),
+                    message: format!(
+                        "'{}' AND '{}' both do not exist",
+                        self.path.display(),
+                        self.moved_path.display()
+                    ),
+                });
             }
 
             // Check if the temporary path is empty
             if is_directory_empty(&self.moved_path) {
-                return Err(format!(
-                    "'{}' is in an invalid overlay mount state: '{}' is empty, which is unexpected",
-                    self.game_id,
-                    self.moved_path.display()
-                ));
+                return Err(OverlayError {
+                    kind: OverlayErrorKind::MountState,
+                    overlay: self.game_id.clone(),
+                    message: format!(
+                        "'{}' is empty, which is unexpected",
+                        self.moved_path.display()
+                    ),
+                });
             }
 
             // println!("MountState: moved");
-            return Ok(MountState::MOVED);
+            return Ok(MountState::Moved);
         }
 
         // At this point, 'path' exists
@@ -117,26 +138,32 @@ impl Overlay {
         if self.is_mounted()? {
             // Check if the temporary path exists
             if !self.moved_path.is_dir() {
-                return Err(format!(
-                    "'{}' is in an invalid overlay mount state: '{}' is mounted, but '{}' does not exist",
-                    self.game_id,
-                    self.path.display(),
-                    self.moved_path.display()
-                ));
+                return Err(OverlayError {
+                    kind: OverlayErrorKind::MountState,
+                    overlay: self.game_id.clone(),
+                    message: format!(
+                        "'{}' is mounted, but '{}' does not exist",
+                        self.path.display(),
+                        self.moved_path.display()
+                    ),
+                });
             }
 
             // Check if the temporary path is empty
             if is_directory_empty(&self.moved_path) {
-                return Err(format!(
-                    "'{}' is in an invalid overlay mount state: '{}' is mounted, but '{}' is empty",
-                    self.game_id,
-                    self.path.display(),
-                    self.moved_path.display()
-                ));
+                return Err(OverlayError {
+                    kind: OverlayErrorKind::MountState,
+                    overlay: self.game_id.clone(),
+                    message: format!(
+                        "'{}' is mounted, but '{}' is empty",
+                        self.path.display(),
+                        self.moved_path.display()
+                    ),
+                });
             }
 
             // println!("MountState: mounted");
-            return Ok(MountState::MOUNTED);
+            return Ok(MountState::Mounted);
         }
 
         // At this point, 'path' exists and isn't mounted
@@ -146,34 +173,45 @@ impl Overlay {
         if is_directory_empty(&self.path) {
             // Check if the temporary path exists
             if !self.moved_path.is_dir() {
-                return Err(format!(
-                    "'{}' is in an invalid overlay mount state: '{}' is empty and '{}' does not exist",
-                    self.game_id,
-                    self.path.display(),
-                    self.moved_path.display()
-                ));
+                return Err(OverlayError {
+                    kind: OverlayErrorKind::MountState,
+                    overlay: self.game_id.clone(),
+                    message: format!(
+                        "'{}' is empty and '{}' does not exist",
+                        self.path.display(),
+                        self.moved_path.display()
+                    ),
+                });
             }
 
             // Check if the temporary path is empty
             if is_directory_empty(&self.moved_path) {
-                return Err(format!(
-                    "'{}' is in an invalid overlay mount state: '{}' AND '{}' are empty",
-                    self.game_id,
-                    self.path.display(),
-                    self.moved_path.display()
-                ));
+                return Err(OverlayError {
+                    kind: OverlayErrorKind::MountState,
+                    overlay: self.game_id.clone(),
+                    message: format!(
+                        "'{}' AND '{}' both are empty",
+                        self.path.display(),
+                        self.moved_path.display()
+                    ),
+                });
             }
 
             // Game files moved, but original path is empty and not mounted, clean up
             fs::remove_dir(&self.path).or_else(|error| {
-                return Err(format!(
-                    "Failed removing empty directory '{}': {}",
-                    self.game_id, error
-                ));
+                return Err(OverlayError {
+                    kind: OverlayErrorKind::Process,
+                    overlay: self.game_id.clone(),
+                    message: format!(
+                        "Failed removing empty directory '{}': {}",
+                        self.path.display(),
+                        error
+                    ),
+                });
             })?;
 
             // println!("MountState: moved");
-            return Ok(MountState::MOVED);
+            return Ok(MountState::Moved);
         }
 
         // At this point 'path' exists and is not empty
@@ -181,58 +219,62 @@ impl Overlay {
 
         // Check if the temporary path exists and isn't empty
         if self.moved_path.is_dir() && !is_directory_empty(&self.moved_path) {
-            return Err(format!(
-                "'{}' is in an invalid overlay mount state: '{}' AND '{}' are not empty",
-                self.game_id,
-                self.path.display(),
-                self.moved_path.display()
-            ));
+            return Err(OverlayError {
+                kind: OverlayErrorKind::MountState,
+                overlay: self.game_id.clone(),
+                message: format!(
+                    "'{}' AND '{}' both are not empty",
+                    self.path.display(),
+                    self.moved_path.display()
+                ),
+            });
         }
 
         // println!("MountState: normal");
-        return Ok(MountState::NORMAL);
+        return Ok(MountState::Normal);
     }
 
-    pub fn clean_working_directory(&self, workdir: &PathBuf) -> Result<(), String> {
+    pub fn clean_working_directory(&self, workdir: &PathBuf) -> Result<(), OverlayError> {
         match Command::new("pkexec")
             .arg("mod-manager-overlayfs-helper")
             .arg("cleanworkdir")
             .arg(&self.game_id)
-            .arg(workdir.to_str().ok_or(format!(
-                "Failed converting 'workdir' string: {}",
-                workdir.display()
-            ))?)
+            .arg(workdir.to_str().ok_or(OverlayError {
+                kind: OverlayErrorKind::String,
+                overlay: self.game_id.clone(),
+                message: format!("{:?}", workdir),
+            })?)
             .status()
         {
             Ok(result) => {
                 if !result.success() {
-                    return Err(format!(
-                        "'cleanworkdir' failed: {}",
-                        result
-                            .code()
-                            .ok_or(format!(
-                                "Failed converting status code to string for game '{}'",
-                                self.game_id
-                            ))?
-                            .to_string()
-                    ));
+                    return Err(OverlayError {
+                        kind: OverlayErrorKind::Process,
+                        overlay: self.game_id.clone(),
+                        message: format!("'cleanworkdir' failed: {:?}", result.code()),
+                    });
                 }
             }
             Err(error) => {
-                return Err(format!("Failed calling 'cleanworkdir': {}", error));
+                return Err(OverlayError {
+                    kind: OverlayErrorKind::Process,
+                    overlay: self.game_id.clone(),
+                    message: format!("Failed executing the helper process: {}", error),
+                });
             }
         }
 
         Ok(())
     }
 
-    pub fn mount(&self, mount_string: String) -> Result<(), String> {
+    pub fn mount(&self, mount_string: String) -> Result<(), OverlayError> {
         // Make sure we're not blocking ourself by cwd == mount_point
         self.change_cwd(false).or_else(|error| {
-            return Err(format!(
-                "Could not change the current working directory for game '{}': {}",
-                self.game_id, error
-            ));
+            return Err(OverlayError {
+                kind: OverlayErrorKind::Process,
+                overlay: self.game_id.clone(),
+                message: format!("Could not change the current working directory: {}", error),
+            });
         })?;
 
         match Command::new("pkexec")
@@ -240,44 +282,46 @@ impl Overlay {
             .arg("mount")
             .arg(&self.game_id)
             .arg(mount_string)
-            .arg(
-                self.path
-                    .to_str()
-                    .ok_or(format!("Failed converting string: {}", self.path.display()))?,
-            )
+            .arg(self.path.to_str().ok_or(OverlayError {
+                kind: OverlayErrorKind::String,
+                overlay: self.game_id.clone(),
+                message: format!("{:?}", self.path),
+            })?)
             .status()
         {
             Ok(result) => {
                 if !result.success() {
-                    return Err(format!(
-                        "'mount' failed: {}",
-                        result
-                            .code()
-                            .ok_or(format!(
-                                "Failed converting status code to string for game '{}'",
-                                self.game_id
-                            ))?
-                            .to_string()
-                    ));
+                    return Err(OverlayError {
+                        kind: OverlayErrorKind::Mount,
+                        overlay: self.game_id.clone(),
+                        message: format!("Error mounting: {:?}", result.code()),
+                    });
                 }
             }
             Err(error) => {
-                return Err(format!("Failed calling 'mount': {}", error));
+                return Err(OverlayError {
+                    kind: OverlayErrorKind::Process,
+                    overlay: self.game_id.clone(),
+                    message: format!("Failed executing the helper process: {}", error),
+                });
             }
         }
 
         // Safety check if mounting was successful
         if !self.is_mounted()? {
-            return Err(format!("Mounting '{}' wasn't successful ", self.game_id));
+            return Err(OverlayError {
+                kind: OverlayErrorKind::MountState,
+                overlay: self.game_id.clone(),
+                message: String::from("Mounting wasn't sucessful"),
+            });
         }
 
         self.change_cwd(true).or_else(|error| {
-            return Err(format!(
-                "Could not change the current working directory for game '{}' to '{}': {}",
-                self.game_id,
-                self.path.display(),
-                error
-            ));
+            return Err(OverlayError {
+                kind: OverlayErrorKind::Process,
+                overlay: self.game_id.clone(),
+                message: format!("Could not change the current working directory: {}", error),
+            });
         })?;
 
         Ok(())
@@ -287,7 +331,7 @@ impl Overlay {
         // Make sure we're not blocking ourself by cwd == mount_point
         self.change_cwd(false).or_else(|error| {
             return Err(OverlayError {
-                kind: OverlayErrorKind::PROCESS,
+                kind: OverlayErrorKind::Process,
                 overlay: self.game_id.clone(),
                 message: format!("Could not change the current working directory: {}", error),
             });
@@ -307,7 +351,7 @@ impl Overlay {
                 // lsof returns 0 if it found programs using the mountpoint
                 if status.success() {
                     return Err(OverlayError {
-                        kind: OverlayErrorKind::USED,
+                        kind: OverlayErrorKind::Used,
                         overlay: self.game_id.clone(),
                         message: String::from("Unmounting failed, the overlay is still in use."),
                     });
@@ -328,15 +372,15 @@ impl Overlay {
             Ok(status) => {
                 if !status.success() {
                     return Err(OverlayError {
-                        kind: OverlayErrorKind::UMOUNT,
+                        kind: OverlayErrorKind::Mount,
                         overlay: self.game_id.clone(),
-                        message: format!("{:?}", status.code()),
+                        message: format!("Error unmounting: {:?}", status.code()),
                     });
                 }
             }
             Err(error) => {
                 return Err(OverlayError {
-                    kind: OverlayErrorKind::PROCESS,
+                    kind: OverlayErrorKind::Process,
                     overlay: self.game_id.clone(),
                     message: format!("Failed executing the helper process: {}", error),
                 });
@@ -349,7 +393,7 @@ impl Overlay {
         Ok(())
     }
 
-    fn is_mounted(&self) -> Result<bool, String> {
+    fn is_mounted(&self) -> Result<bool, OverlayError> {
         match Command::new("mountpoint")
             .arg("--quiet")
             .arg(&self.path)
@@ -363,7 +407,11 @@ impl Overlay {
                 }
             }
             Err(error) => {
-                return Err(format!("Unable to run 'mountpoint' process: {}", error));
+                return Err(OverlayError {
+                    kind: OverlayErrorKind::Process,
+                    overlay: self.game_id.clone(),
+                    message: format!("Failed executing 'mountpoint' process: {}", error),
+                });
             }
         }
     }
