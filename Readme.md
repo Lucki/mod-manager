@@ -1,43 +1,81 @@
 # Mod-Manager
-
 Simple game mod manager using OverlayFS.
 
-While a mod set is activated, the manager replaces the original game file path with an OverlayFS mount which contains the original game and a set of mods.
-This allows other programs to easily access modded games exactly like if they weren't modded.
+This mod manager "replaces" files in-place based on pre-defined configuration rules.
+Because this takes place on-demand, it's completely transparent to launchers like Steam.
 
-Mod sets are defined in a configuration file.
-Mod sets can have any number of mods and can even be nested.
-An empty (`""`) active mod set name disables any mods.
-The active mod set can be overridden with `--set` in the command line.
+## Functionality
+1. The manager moves the original files out of the way and mounts them back into the original place but with any modifications layered on top.
+1. The program can now be accessed and started like usual.
+1. When done with the session, the overlay is unmounted again and the original files are moved back to their original place.
 
-There are a two ways to handle mods, the first one is recommended:
-* Start each game with:
-  ~~~ text
-  mod-manager wrap <game-id> -- <game-command>
-  ~~~
-  * More flexible - mod sets can be adjusted per command call.
-  * Mods are enabled on demand.
-  * Automatic updates from launchers modify the real game files.
-  * Needs manual setup for every game.
-  * Steam/Bottles launch options example:
-    ~~~ text
-    mod-manager wrap <game-id> -- %command%
-    ~~~
-* Run `mod-manager activate` at login and `mod-manager deactivate` at logout
-  * Only needs a setup once - enable and forget solution.
-  * Mods are always available.
-  * Launcher with automatic updates might try to access modded folders which means:
-    * If mounted immutable the update will probably fail
-    * If mounted writable the update will land in a persistent cache and will take precedence over mods in the future:<br>
-      `$XDG_CACHE_HOME/mod-manager/<game-id>/<set-name>_persistent`
-  * Example: `systemctl --user enable mod-manager.service`
+## Quick start tutorial
+This describes the setup and startup flow for a typical folder based modification.
+
+1. We run `mod-manager setup "My Game" "My new mod" --path="/mnt/steam/steamapps/common/awesome game"` to start the setup process for a game and it's new modification.
+
+    Since this is the first time we set up this game we should set the location with `--path` parameter.
+    The parameter is in fact optional, but already setting it here gives us tab-completion while pre-filling the value later.
+    1. Because this is the first time we set up this game, an editor opens with a pre-filled template.
+        The only important configuration value here is the `path = …` as that defines the location of the game to be modified.
+
+        If you'd like a different modification save path than the default (`$XDG_DATA_HOME/<game-id>/<mod-name>`) you should also uncomment and edit the `mod_root_path = …` value here now.
+    1. We save the configuration file and close the editor.
+        The mod-manager now mounts the program files.
+    1. The file explorer opens at the programs location, and we install our modification as described in their documentation.
+
+        This is often simply copying files into specific folder and maybe overwriting files in the process.
+        Sometimes this involves running an installer - do the things necessary for installation.
+    1. When done, we close any programs that are currently accessing the files, like the file explorer from before.
+    1. Back at the mod-manager program we press *Enter* as instructed.
+
+        The mod-manager now unmounts the program files and moves only the modification files to the `mod_root_path`.
+    1. We now separated everything needed for this modification to work in a single folder.
+1. Next, we have to assign this modification to a *set*.
+    We run `mod-manager edit "My Game"` which opens the editor again.
+    1. `["set1"]` is already in the file from the template, let's adjust it as needed.
+    1. We edit `"mod1",` inside the `["set1"]` table to be `"My new mod",`
+    1. We remove the lines `"mod2",` and `"mod3",`.
+    1. That's it for now, we save and close the editor.
+1. This example describes modifying a Steam game, so we now head into Steam and locate the game in our list.
+    1. Open the preferences for that game, either with a context click or though the gear icon.
+    1. Edit the startup parameter to include the *mod-manager* together with the *set* we defined earlier:
+
+        `mod-manager wrap "My Game" --set="set1" -- %command%`
+    1. Upon closing the game preferences again we're done.
+1. That's it.
+    Clicking in Steam on "Launch" now starts the game with the modifications applied.
+
+    The configuration file allows for countless customizations.
+    For an exhaustive list take a look at [Configuration file](#configuration-file)
+
+    Without going into details, you can:
+    * Define a default set (`active = `)
+    * Group modifications in *sets* and nest them into other *sets*.
+    * Annotate modifications with comments and links using the `#` character in front.
+    * Start arbitrary different programs before launching.
+    * Switch the current *set* using the `--set` parameter and even switching off any modifications by giving an empty parameter (`--set=""`).
+
+## Configuration file
+
+Configuration files are placed in `$XDG_CONFIG_HOME/mod-manager` and written in [TOML](https://toml.io/en/latest).
+
+See `complete.toml.example` and `minimal.toml.example` for examples.
+
+## Installation
+Make requires rust.
+Build with `make build` or directly with `cargo build --release`<br>
+The executable is in `target/release/mod-manager`
+
+Install with `make install`<br>
+Adjust `PREFIX` and `DESTDIR` as needed.
 
 ## Warning
 
 Do **not** change the *original* files while being mounted! This is a limitation of OverlayFS and is undefined behavior.
 
 Affected paths are:
-* The original game files, moved to a folder besides the game folder with a `_mod-manager` suffix:<br>
+* The original files, moved to a folder besides the original folder with a `_mod-manager` suffix:<br>
   ~~~ text
   /path/to/game_mod-manager
   ~~~
@@ -133,14 +171,20 @@ Options:
 This directive is a bit special and needs some additional explanation. It is intended for single usage and simplifies the creation process of new configs or mods.
 
 1. Two possibilities:
-    * The config file doesn't exist yet:<br>
-      The configured `$EDITOR` opens with a pre-filled template. Make adjustments and save the file. Upon closing the editor the script continues.
-      The `--path="/path/to/game/files"` argument is optional and will be inserted in the template mentioned above.
-    * The config file exists already:<br>
-      For this directive the only required value in the config file is the `path = "/to/the/game"`.
+    * The config file doesn't exist yet:
+
+        The configured `$EDITOR` opens with a pre-filled template.
+
+        Make adjustments and save the file.
+        Upon closing the editor the script continues.
+
+        The `--path="/path/to/game/files"` argument is optional and will be inserted in the template mentioned above.
+    * The config file exists already:
+
+        For this directive the only required value in the config file is the `path = "/to/the/game"`.
 1. Run `mod-manager setup <game-id> <new-mod-name>`
-1. Now the changes can be made to the game, e.g. dropping files or folders into the games directory structure or executing an addon installer.
-1. When done press *Enter* and you'll find only the changes (basically the plain mod) in the `<mod_root_path>/<mod-name>`<br>
+1. Now the changes can be made to the game, e.g. dropping files or folders into the game directory structure or executing an add-on installer.
+1. When done press *Enter*, and you'll find only the changes (basically the plain mod) in the `<mod_root_path>/<mod-name>`<br>
     Defaults to `$XDG_DATA_HOME/<game-id>/<mod-name>`
 1. You can now add `<mod-name>` in your configuration file to sets.
 </details>
@@ -161,17 +205,3 @@ Options:
   -h, --help       Print help
 ~~~
 </details>
-
-## Configuration file
-
-Configuration files are placed in `$XDG_CONFIG_HOME/mod-manager` and written in [TOML](https://toml.io/en/latest).
-
-See `complete.toml.example` and `minimal.toml.example` for examples.
-
-## Installation
-Make requires rust.
-Build with `make build` or directly with `cargo build --release`<br>
-The executable is in `target/release/mod-manager`
-
-Install with `make install`<br>
-Adjust `PREFIX` and `DESTDIR` as needed.
