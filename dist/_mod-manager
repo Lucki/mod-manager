@@ -110,18 +110,25 @@ __mod-manager-mod-identifier() {
 }
 
 __mod-manager-set-identifier() {
-    local XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
-    local config="$XDG_CONFIG_HOME/mod-manager/${words[2]//\\ / }.toml"
+    # Get the game identifier
+    # ZSH escapes spaces with a backslash or by encapsulating with quotation marks
+    # we don't need those
+    local game_id=${words[2]//\\ / }
+    game_id=${game_id//\"/}
 
-    if [ -f "$config" ]; then
-        # Use grep to find lines containing "[table_name]" and "mods"
-        # escape colons in result
-        # shellcheck disable=SC2046
-        _values 'set name' $(grep -E '^\[.*\]|mods' "${config//\"/}" | sed 's/:/\\:/g' | \
-            # Filter out lines containing comments or empty lines
-            grep -vE '^\s*#|^\s*$' | \
-            # Use awk to extract table names containing "mods" and remove surrounding brackets
-            awk '/\[.*\]/{gsub(/\[|\]|"/,""); table=$1} /mods/{print table}')
+    local XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+    local config="$XDG_CONFIG_HOME/mod-manager/$game_id.toml"
+
+    if [ -f "$config" ] && command -v tomlq >/dev/null 2>&1; then
+        # Use tomlq to find all tables containing a mods children
+        local output="$(tomlq -r 'keys[] as $k | select(.[$k] | type == "object" and has("mods")) | $k' "$config" | \
+            # escape colons in result, that's a zsh seperator
+            sed 's/:/\\:/g')"
+
+        # Split on line breaks.
+        local -a sets=( "${(f)output}" )
+
+        _values 'set name' $sets
     else
         _message 'Mod set name'
     fi
