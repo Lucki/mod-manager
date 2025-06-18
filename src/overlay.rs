@@ -398,6 +398,12 @@ impl Overlay {
         }
     }
 
+    /// Change the current working directory to or away from the self.cwd
+    ///
+    /// cwd parameter:
+    /// * true → Change to self.cwd
+    /// * false → Change away from self.cwd
+    ///
     pub fn change_cwd(&self, cwd: bool) -> Result<(), OverlayError> {
         let result = match cwd {
             true => set_current_dir(&self.cwd),
