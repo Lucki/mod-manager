@@ -269,13 +269,7 @@ impl Overlay {
 
     pub fn mount(&self, mount_string: String) -> Result<(), OverlayError> {
         // Make sure we're not blocking ourself by cwd == mount_point
-        self.change_cwd(false).or_else(|error| {
-            return Err(OverlayError {
-                kind: OverlayErrorKind::Process,
-                overlay: self.game_id.clone(),
-                message: format!("Could not change the current working directory: {}", error),
-            });
-        })?;
+        self.change_cwd(false)?;
 
         match Command::new("pkexec")
             .arg("mod-manager-overlayfs-helper")
@@ -316,26 +310,14 @@ impl Overlay {
             });
         }
 
-        self.change_cwd(true).or_else(|error| {
-            return Err(OverlayError {
-                kind: OverlayErrorKind::Process,
-                overlay: self.game_id.clone(),
-                message: format!("Could not change the current working directory: {}", error),
-            });
-        })?;
+        self.change_cwd(true)?;
 
         Ok(())
     }
 
     pub fn unmount(&self) -> Result<(), OverlayError> {
         // Make sure we're not blocking ourself by cwd == mount_point
-        self.change_cwd(false).or_else(|error| {
-            return Err(OverlayError {
-                kind: OverlayErrorKind::Process,
-                overlay: self.game_id.clone(),
-                message: format!("Could not change the current working directory: {}", error),
-            });
-        })?;
+        self.change_cwd(false)?;
 
         // Wait some time to register we're in another cwd before trying to unmount
         thread::sleep(std::time::Duration::from_secs(1));
@@ -416,11 +398,19 @@ impl Overlay {
         }
     }
 
-    pub fn change_cwd(&self, cwd: bool) -> Result<(), std::io::Error> {
-        match cwd {
-            true => return set_current_dir(&self.cwd),
-            false => return set_current_dir(Path::new("/")),
-        }
+    pub fn change_cwd(&self, cwd: bool) -> Result<(), OverlayError> {
+        let result = match cwd {
+            true => set_current_dir(&self.cwd),
+            false => set_current_dir(Path::new("/")),
+        };
+
+        result.or_else(|error| {
+            Err(OverlayError {
+                kind: OverlayErrorKind::Process,
+                overlay: self.game_id.clone(),
+                message: format!("Could not change the current working directory: {}", error),
+            })
+        })
     }
 }
 
