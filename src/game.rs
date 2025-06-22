@@ -518,8 +518,13 @@ impl Game {
         Ok(())
     }
 
-    pub fn wrap(&self, command: ExternalCommand, writable: bool) -> Result<(), String> {
+    pub fn wrap(&self, mut command: ExternalCommand, writable: bool) -> Result<(), String> {
         self.activate(writable, false)?;
+
+        match &self.mod_tree {
+            Some(tree) => command.add_environment_variables(&mut tree.get_environment()),
+            None => {}
+        }
 
         match command.run() {
             Ok(_) => (),

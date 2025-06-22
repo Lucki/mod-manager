@@ -160,4 +160,9 @@ impl ExternalCommand {
 
         return Ok(None);
     }
+
+    /// Moves all elements from variables to this.
+    pub fn add_environment_variables(&mut self, variables: &mut Vec<(String, String)>) -> () {
+        self.env.append(variables);
+    }
 }

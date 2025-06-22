@@ -14,6 +14,7 @@ pub struct ModSet {
     mods: Vec<String>,
     mod_sets: HashMap<String, ModSet>,
     root_path: PathBuf,
+    env: Vec<(String, String)>,
 }
 
 impl ModSet {
@@ -179,6 +180,28 @@ impl ModSet {
             );
         }
 
+        let mut env: Vec<(String, String)> = vec![];
+        if let Some(value) = set_config.get("environment") {
+            let environment_table = value.as_table().ok_or(format!(
+                "'environment' must be a table in game '{}'",
+                game_id
+            ))?;
+
+            for environment in environment_table {
+                if !environment.1.is_str() {
+                    return Err(format!(
+                        "Invalid value in 'environment' table '{}' for key '{}' (must be string)",
+                        game_id, environment.0
+                    ));
+                }
+
+                env.push((
+                    environment.0.clone(),
+                    environment.1.as_str().unwrap().to_string(),
+                ));
+            }
+        }
+
         return Ok(ModSet {
             writable,
             should_run_pre_commands,
@@ -186,6 +209,7 @@ impl ModSet {
             mods: added_mods.clone(),
             mod_sets,
             root_path,
+            env,
         });
     }
 
@@ -256,6 +280,22 @@ impl ModSet {
         }
 
         return false;
+    }
+
+    /// Get a copy of all environment variables defined for this mod set tree
+    pub fn get_environment(&self) -> Vec<(String, String)> {
+        let mut envs = self.env.clone();
+
+        for mod_name in &self.mods {
+            match self.mod_sets.get(mod_name) {
+                Some(set) => {
+                    envs.append(&mut set.get_environment().clone());
+                }
+                None => {}
+            }
+        }
+
+        envs
     }
 }
 

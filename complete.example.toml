@@ -91,6 +91,12 @@ run_pre_command = true
         "4k Textures",   # This folder has to exist: "$XDG_DATA_HOME/mod-manager/<gameID>/4k Textures"
         "Sunny weather", # This folder has to exist: "$XDG_DATA_HOME/mod-manager/<gameID>/Sunny weather"
     ]
+    
+    # Additional environment variables for a wrapped command as a sub table in the form of:
+    # VARIABLE = "value"
+    ["Visual Enhancements".environment]
+        WINEDLLOVERRIDES = "winhttp=n,b"
+        MY_ENV = "variable"
 
 # An array of pre_commands, can appear multiple times.
 # Defines commands that will run after applying the mod, but only if any mod set or the global option has "run_pre_command" set to true
