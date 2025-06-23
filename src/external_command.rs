@@ -3,7 +3,7 @@ use std::{
     thread,
     time::Duration,
 };
-use toml::{map::Map, Value};
+use toml::{Value, map::Map};
 
 #[derive(Clone, Debug)]
 pub struct ExternalCommand {
@@ -55,7 +55,7 @@ impl ExternalCommand {
                     return Err(format!(
                         "Error converting to string in 'command' array for game '{}'",
                         game_name
-                    ))
+                    ));
                 }
             }
         }
@@ -68,7 +68,7 @@ impl ExternalCommand {
                     return Err(format!(
                         "'wait_for_exit' is not a boolean for game '{}'",
                         game_name
-                    ))
+                    ));
                 }
             };
         }
