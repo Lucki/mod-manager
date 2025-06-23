@@ -156,8 +156,8 @@ impl Game {
             };
         }
 
-        if !path.exists() {
-            std::fs::create_dir_all(&path).unwrap();
+        if !mod_root_path.exists() {
+            std::fs::create_dir_all(&mod_root_path).unwrap();
         }
 
         let writable = match config.get("writable") {
