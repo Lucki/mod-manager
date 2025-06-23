@@ -50,41 +50,6 @@ pub struct Game {
 }
 
 impl Game {
-    pub fn new(id: String, game_path: PathBuf) -> Result<Self, String> {
-        let xdg_dirs_config = get_xdg_dirs();
-
-        let config_file = xdg_dirs_config
-            .place_config_file(format!("{}.toml", id))
-            .or_else(|error| return Err(format!("Failed to create game config file: {}", error)))?;
-
-        // Check if '$XDG_CONFIG_HOME/mod-manager/$id.toml', fail if it does
-        match config_file.try_exists() {
-            Ok(exists) => {
-                if exists {
-                    return Err(format!("Config '{}' already exists", config_file.display()));
-                }
-            }
-            Err(error) => {
-                return Err(format!("{}", error));
-            }
-        }
-
-        // Write toml entry 'path = $path' to '$XDG_CONFIG_HOME/mod-manager/$id.toml'
-        std::fs::write(
-            config_file,
-            format!(
-                r#"path = "{}""#,
-                game_path
-                    .to_str()
-                    .ok_or(format!("Failed to parse path {:?}", game_path))?
-            ),
-        )
-        .or_else(|error| return Err(format!("Could not write config file: {}", error)))?;
-
-        // Return game generated from toml config
-        return Game::from_config_file(id, None);
-    }
-
     pub fn from_config_file(id: String, set_override: Option<String>) -> Result<Self, String> {
         let xdg_dirs_config = get_xdg_dirs();
 
@@ -886,30 +851,6 @@ fn escape_special_mount_chars(string: String) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn create_empty_config() {
-        let id = String::from("test, game");
-        let xdg_dirs = BaseDirectories::with_prefix(format!("mod-manager")).unwrap();
-        let game_path = PathBuf::from(String::from("test/game"));
-        let config_name = format!("{}.toml", id);
-
-        // clean file if it already exists for an even testing ground
-        match xdg_dirs.find_config_file(config_name.clone()) {
-            Some(path) => fs::remove_file(path).unwrap(),
-            None => (),
-        }
-
-        let game = Game::new(id.clone(), game_path);
-        assert!(game.is_ok());
-        assert_eq!(game.unwrap().path.to_str().unwrap(), "test/game");
-
-        // clean remnants after test
-        match xdg_dirs.find_config_file(config_name.clone()) {
-            Some(path) => fs::remove_file(path).unwrap(),
-            None => assert!(false, "Config file doesn't exist."),
-        }
-    }
 
     #[test]
     fn mount_path_default_set() {
