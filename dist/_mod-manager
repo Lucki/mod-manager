@@ -101,6 +101,9 @@ __mod-manager-game-identifier() {
         available+=("${$(basename "$config")//:/\:}")
     done
 
+    # filter main config file from selection
+    available=( "${available[@]/config.toml}" )
+
     # shellcheck disable=SC2068
     _values game ${available[@]%.toml}
 }

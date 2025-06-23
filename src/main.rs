@@ -1,10 +1,9 @@
 use clap::Parser;
-use std::env;
-use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::vec;
+use std::{env, fs};
 use xdg::BaseDirectories;
 
 mod external_command;
@@ -152,53 +151,117 @@ fn main() {
         } => {
             let mut arguments: Vec<String> = vec![];
 
-            let editor = match env::var("EDITOR") {
-                Ok(value) => value,
-                Err(_) => "vi".to_owned(),
+            let config = match fs::read_to_string(get_config_file_for_id("config")) {
+                Ok(content) => match content.parse::<toml::Table>() {
+                    Ok(toml) => toml,
+                    Err(err) => {
+                        eprintln!(
+                            "Error parsing 'config.toml', using default values.\nError: {}",
+                            err
+                        );
+                        toml::Table::new()
+                    }
+                },
+                Err(_) => toml::Table::new(),
             };
 
-            let config_file = get_config_file_for_id(&game_id);
+            // Try getting editor from own config first and then
+            // fallback to VISUAL and EDITOR variables
+            let editor = match config.get("editor") {
+                Some(value) => match value.as_str() {
+                    Some(editor_string) => editor_string.to_owned(),
+                    None => {
+                        eprintln!("Failed parsing editor string, using default value.");
+                        String::from("vi")
+                    }
+                },
+                None => match env::var("VISUAL") {
+                    Ok(value) => value,
+                    Err(_) => match env::var("EDITOR") {
+                        Ok(value) => value,
+                        Err(_) => String::from("vi"),
+                    },
+                },
+            };
 
-            if !Path::new(&config_file).exists() {
-                match File::create(&config_file) {
+            let game_config_file = get_config_file_for_id(&game_id);
+
+            if !Path::new(&game_config_file).exists() {
+                let template_config = match config.get("template") {
+                    Some(value) => match value.as_table() {
+                        Some(table) => table,
+                        None => {
+                            eprintln!("Failed parsing default table, using defaults!");
+                            &toml::Table::new()
+                        }
+                    },
+                    None => &toml::Table::new(),
+                };
+
+                match fs::File::create(&game_config_file) {
                     Ok(mut file) => {
-                        let mut path = match PathBuf::from_str(
-                            "/home/username/.local/share/Steam/steamapps/common/game",
-                        ) {
-                            Ok(pathbuf) => pathbuf,
-                            Err(_) => panic!("Failed creating PathBuf!"),
+                        let template_path = match xdg::BaseDirectories::new() {
+                            Ok(xdg) => xdg.get_data_home().join("Steam/steamapps/common/"),
+                            Err(err) => panic!("Failed creating default path: {}", err),
                         };
 
-                        match game_path {
-                            Some(path_string) => path = path_string,
-                            None => {}
-                        }
+                        let path = match game_path {
+                            Some(path) => path,
+                            None => match template_config.get("path") {
+                                Some(value) => match value.as_str() {
+                                    Some(path) => match PathBuf::from_str(path) {
+                                        Ok(pathbuf) => pathbuf,
+                                        Err(err) => panic!("Failed creating PathBuf: {}", err),
+                                    },
+                                    None => {
+                                        eprintln!(
+                                            "Failed parsing default path value, using default!"
+                                        );
+                                        template_path
+                                    }
+                                },
+                                None => template_path,
+                            },
+                        };
+
+                        let mod_root = match template_config.get("mod_root_path") {
+                            Some(value) => match value.as_str() {
+                                Some(mod_path) => {
+                                    format!("\nmod_root_path = \"{}\"", mod_path.to_owned())
+                                }
+                                None => {
+                                    eprintln!("Failed parsing default mod_root_path!");
+                                    String::from("")
+                                }
+                            },
+                            None => String::from(""),
+                        };
 
                         let config_content = format!(
-                            r#"active = ""
-path = "{}"
-# mod_root_path = "/mnt/mods/game"
+                            r#"path = "{}"{}
 
-["set1"]
+["set id"]
 mods = [
-    "mod1",
-    "mod2",
-    "mod3",
+    "mod id",
 ]
 "#,
-                            path.to_string_lossy()
+                            path.to_string_lossy(),
+                            mod_root
                         );
 
                         file.write_all(config_content.as_bytes()).unwrap();
                     }
                     Err(error) => {
-                        eprintln!("Failed to create config file '{}': {}", config_file, error);
+                        eprintln!(
+                            "Failed to create config file '{}': {}",
+                            game_config_file, error
+                        );
                     }
                 }
             }
 
             arguments.push(editor);
-            arguments.push(config_file);
+            arguments.push(game_config_file);
 
             ExternalCommand::new("editor".to_owned(), arguments, Some(true), None)
                 .run()
@@ -327,10 +390,12 @@ fn create_games_from_config_files(games_list: &mut Vec<Game>, config_files: Vec<
 /// Return a list of all *.toml of files in a config folder.
 fn get_game_config_list(xdg: BaseDirectories) -> Vec<PathBuf> {
     let mut config_files = xdg.list_config_files_once("");
-    config_files.retain(|file| match file.extension() {
-        Some(ext) => ext == "toml",
-        None => false,
+    config_files.retain(|file| file.extension().is_some_and(|ext| ext == "toml"));
+    config_files.retain(|file| {
+        file.file_name()
+            .is_some_and(|basename| basename != "config.toml")
     });
+
     config_files
 }
 

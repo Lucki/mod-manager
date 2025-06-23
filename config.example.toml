@@ -1,0 +1,9 @@
+# Open config files with this editor, falls back to VISUAL and EDITOR environment variables
+editor = "nano"
+
+# Default values for newly created game config files
+[template]
+# Pre-fill the path value with this value
+path = "/home/username/.local/share/Steam/steamapps/common/"
+# Pre-fill the mod_root_path with this value
+mod_root_path = "/mnt/mods/"

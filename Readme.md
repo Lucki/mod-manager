@@ -19,7 +19,7 @@ This describes the setup and startup flow for a typical folder based modificatio
     1. Because this is the first time we set up this game, an editor opens with a pre-filled template.
         The only important configuration value here is the `path = …` as that defines the location of the game to be modified.
 
-        If you'd like a different modification save path than the default (`$XDG_DATA_HOME/<game-id>/<mod-name>`) you should also uncomment and edit the `mod_root_path = …` value here now.
+        If you'd like a different modification save path than the default (`$XDG_DATA_HOME/<game-id>/<mod-name>`) you should also add the `mod_root_path = …` value here now.
     1. We save the configuration file and close the editor.
         The mod-manager now mounts the program files.
     1. The file explorer opens at the programs location, and we install our modification as described in their documentation.
