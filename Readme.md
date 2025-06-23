@@ -72,6 +72,8 @@ The executable is in `target/release/mod-manager`
 Install with `make install`<br>
 Adjust `PREFIX` and `DESTDIR` as needed.
 
+`tomlq` is optionally used in the zsh completions.
+
 ## Warning
 
 Do **not** change the *original* files while being mounted! This is a limitation of OverlayFS and is undefined behavior.
