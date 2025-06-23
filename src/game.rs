@@ -542,16 +542,16 @@ impl Game {
         Ok(())
     }
 
-    /**
-     * Convenience function to set up a new mod.
-     *
-     * It's basically an automated {@link activate} and {@link deactivate} with time to do modifications between.
-     * Afterwards the isolated modifications will be moved to the mod root path with the name ''mod_id''.
-     *
-     * This happens on top of an active set if configured or overridden.
-     *
-     * @param mod_id Name of the new mod. The changes will end up in path "mod_root_path/''mod_id''".
-     */
+    ///
+    /// Convenience function to set up a new mod.
+    ///
+    /// It's basically an automated {@link activate} and {@link deactivate} with time to do modifications between.
+    /// Afterwards the isolated modifications will be moved to the mod root path with the name ''mod_id''.
+    ///
+    /// This happens on top of an active set if configured or overridden.
+    ///
+    /// @param mod_id Name of the new mod. The changes will end up in path "mod_root_path/''mod_id''".
+    ///
     pub fn setup(&self, new_mod_id: String) -> Result<(), String> {
         let new_mod_path = self.mod_root_path.join(&new_mod_id);
         let cache_path = self
