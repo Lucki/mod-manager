@@ -151,7 +151,7 @@ fn main() {
         } => {
             let mut arguments: Vec<String> = vec![];
 
-            let config = match fs::read_to_string(get_config_file_for_id("config")) {
+            let config = match fs::read_to_string(get_config_file_path_for_id("config")) {
                 Ok(content) => match content.parse::<toml::Table>() {
                     Ok(toml) => toml,
                     Err(err) => {
@@ -184,7 +184,7 @@ fn main() {
                 },
             };
 
-            let game_config_file = get_config_file_for_id(&game_id);
+            let game_config_file = get_config_file_path_for_id(&game_id);
 
             if !Path::new(&game_config_file).exists() {
                 let template_config = match config.get("template") {
@@ -253,7 +253,7 @@ mods = [
                     }
                     Err(error) => {
                         eprintln!(
-                            "Failed to create config file '{}': {}",
+                            "Failed to create config file '{:?}': {}",
                             game_config_file, error
                         );
                     }
@@ -261,7 +261,13 @@ mods = [
             }
 
             arguments.push(editor);
-            arguments.push(game_config_file);
+            arguments.push(
+                game_config_file
+                    .as_os_str()
+                    .to_str()
+                    .expect("Failed converting PathBuf!")
+                    .to_owned(),
+            );
 
             ExternalCommand::new("editor".to_owned(), arguments, Some(true), None)
                 .run()
@@ -273,7 +279,7 @@ mods = [
             path: game_path,
             set,
         } => {
-            let config_file = get_config_file_for_id(&game_id);
+            let config_file = get_config_file_path_for_id(&game_id);
 
             if !Path::new(&config_file).exists() {
                 println!(
@@ -400,13 +406,10 @@ fn get_game_config_list(xdg: BaseDirectories) -> Vec<PathBuf> {
 }
 
 /// Return the config file for a game ID, possible it doesn't exist yet
-fn get_config_file_for_id(game: &str) -> String {
+fn get_config_file_path_for_id(game: &str) -> PathBuf {
     get_xdg_dirs()
         .place_config_file(format!("{}.toml", game))
         .expect("Unable to place config file.")
-        .to_str()
-        .expect("Failed converting config path to string.")
-        .to_owned()
 }
 
 pub fn get_xdg_dirs() -> BaseDirectories {
