@@ -50,17 +50,19 @@ This describes the setup and startup flow for a typical folder based modificatio
     For an exhaustive list take a look at [Configuration file](#configuration-file)
 
     Without going into details, you can:
-    * Define a default set (`active = `)
+    * Define a default set (`active = …`)
     * Group modifications in *sets* and nest them into other *sets*.
     * Annotate modifications with comments and links using the `#` character in front.
     * Start arbitrary different programs before launching.
-    * Switch the current *set* using the `--set` parameter and even switching off any modifications by giving an empty parameter (`--set=""`).
+    * Switch the current *set* using the `--set=…` parameter and even switching off any modifications by giving an empty parameter (`--set=""`).
 
 ## Configuration file
 
 Configuration files are placed in `$XDG_CONFIG_HOME/mod-manager` and written in [TOML](https://toml.io/en/latest).
 
-See `complete.toml.example` and `minimal.toml.example` for examples.
+See `complete.toml.example` and `minimal.toml.example` for game config examples.
+There's also `config.toml`, which can be used to set default search paths and adjusting the template.
+See `config.example.toml` for an example.
 
 ## Installation
 Make requires rust.

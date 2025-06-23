@@ -96,6 +96,7 @@ enum Action {
 
 fn main() {
     let args = Cli::parse();
+    let global_config = read_global_config();
 
     match args.action {
         Action::Activate {
@@ -108,7 +109,7 @@ fn main() {
                 // make all mounts writable
                 writable = false;
             }
-            let games_to_act_on: Vec<Game> = get_game_list(game, set);
+            let games_to_act_on: Vec<Game> = get_game_list(game, set, &global_config);
 
             let mut failed = false;
             for game in &games_to_act_on {
@@ -136,7 +137,7 @@ fn main() {
             }
         }
         Action::Deactivate { game } => {
-            for game in get_game_list(game, None) {
+            for game in get_game_list(game, None, &global_config) {
                 match game.deactivate() {
                     Ok(()) => (),
                     Err(error) => {
@@ -305,7 +306,13 @@ mods = [
                     .unwrap();
             }
 
-            let game = Game::from_config_file(game_id, set).unwrap();
+            let game = Game::from_config_file(
+                game_id,
+                set,
+                get_default_game_path_root(&global_config),
+                get_default_mod_root(&global_config),
+            )
+            .unwrap();
 
             match game.setup(mod_id) {
                 Ok(()) => (),
@@ -330,7 +337,13 @@ mods = [
                 panic!("Missing command for wrapping game");
             }
 
-            let game = Game::from_config_file(game_id, set).unwrap();
+            let game = Game::from_config_file(
+                game_id,
+                set,
+                get_default_game_path_root(&global_config),
+                get_default_mod_root(&global_config),
+            )
+            .unwrap();
             match game.wrap(
                 ExternalCommand::new("wrap_command".to_string(), command, Some(true), None),
                 writable,
@@ -351,23 +364,39 @@ mods = [
 }
 
 /// Returns a list games, either derived from the given ID and SET or derived from all config files.
-fn get_game_list(game_id: Option<String>, override_set: Option<String>) -> Vec<Game> {
+fn get_game_list(
+    game_id: Option<String>,
+    override_set: Option<String>,
+    global_config: &toml::Table,
+) -> Vec<Game> {
     let mut games: Vec<Game> = vec![];
 
     match game_id {
         Some(game) => {
-            games.push(Game::from_config_file(game, override_set).unwrap());
+            games.push(
+                Game::from_config_file(
+                    game,
+                    override_set,
+                    get_default_game_path_root(&global_config),
+                    get_default_mod_root(&global_config),
+                )
+                .unwrap(),
+            );
         }
         None => {
             let config_files = get_game_config_list(get_xdg_dirs());
-            create_games_from_config_files(&mut games, config_files);
+            create_games_from_config_files(&mut games, config_files, &global_config);
         }
     }
 
     games
 }
 
-fn create_games_from_config_files(games_list: &mut Vec<Game>, config_files: Vec<PathBuf>) -> () {
+fn create_games_from_config_files(
+    games_list: &mut Vec<Game>,
+    config_files: Vec<PathBuf>,
+    global_config: &toml::Table,
+) -> () {
     for game_config in config_files {
         games_list.push(
             match Game::from_config_file(
@@ -378,6 +407,8 @@ fn create_games_from_config_files(games_list: &mut Vec<Game>, config_files: Vec<
                     .unwrap()
                     .to_string(),
                 None,
+                get_default_game_path_root(&global_config),
+                get_default_mod_root(&global_config),
             ) {
                 Ok(g) => g,
                 Err(error) => {
@@ -414,4 +445,72 @@ fn get_config_file_path_for_id(game: &str) -> PathBuf {
 
 pub fn get_xdg_dirs() -> BaseDirectories {
     return BaseDirectories::with_prefix("mod-manager").expect("Unable to get user directories!");
+}
+
+fn read_global_config() -> toml::Table {
+    match fs::read_to_string(get_config_file_path_for_id("config")) {
+        Ok(content) => match content.parse::<toml::Table>() {
+            Ok(toml) => toml,
+            Err(err) => {
+                eprintln!(
+                    "Error parsing 'config.toml', using default values.\nError: {}",
+                    err
+                );
+                toml::Table::new()
+            }
+        },
+        Err(_) => toml::Table::new(),
+    }
+}
+
+fn get_default_game_path_root(config: &toml::Table) -> Option<PathBuf> {
+    let config = match config.get("default") {
+        Some(value) => match value.as_table() {
+            Some(default_table) => default_table,
+            None => {
+                eprintln!("Config default is not a table!");
+                return None;
+            }
+        },
+        None => return None,
+    };
+
+    match config.get("game_root_path") {
+        Some(value) => match value.as_str() {
+            Some(path) => {
+                Some(PathBuf::from_str(path).expect("Failed converting string to PathBuf!"))
+            }
+            None => {
+                eprintln!("Failed parsing game_root_path!");
+                None
+            }
+        },
+        None => None,
+    }
+}
+
+fn get_default_mod_root(config: &toml::Table) -> Option<PathBuf> {
+    let config = match config.get("default") {
+        Some(value) => match value.as_table() {
+            Some(default_table) => default_table,
+            None => {
+                eprintln!("Config default is not a table!");
+                return None;
+            }
+        },
+        None => return None,
+    };
+
+    match config.get("mod_root_path") {
+        Some(value) => match value.as_str() {
+            Some(path) => {
+                Some(PathBuf::from_str(path).expect("Failed conversting string to PathBuf!"))
+            }
+            None => {
+                eprintln!("Failed parsing mod_root_path!");
+                None
+            }
+        },
+        None => None,
+    }
 }

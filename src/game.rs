@@ -50,7 +50,12 @@ pub struct Game {
 }
 
 impl Game {
-    pub fn from_config_file(id: String, set_override: Option<String>) -> Result<Self, String> {
+    pub fn from_config_file(
+        id: String,
+        set_override: Option<String>,
+        default_path_root: Option<PathBuf>,
+        default_mod_root: Option<PathBuf>,
+    ) -> Result<Self, String> {
         let xdg_dirs_config = get_xdg_dirs();
 
         let config_file = xdg_dirs_config
@@ -78,29 +83,47 @@ impl Game {
             ))?
             .to_owned();
 
-        return Game::from_config(id, set_override, config);
+        return Game::from_config(
+            id,
+            set_override,
+            config,
+            default_path_root,
+            default_mod_root,
+        );
     }
 
     fn from_config(
         id: String,
         set_override: Option<String>,
         config: toml::Table,
+        default_path_root: Option<PathBuf>,
+        default_mod_root: Option<PathBuf>,
     ) -> Result<Self, String> {
         let xdg_dirs = Game::get_xdg_dirs(id.clone())?;
 
-        // 'path' field is required, fail if it doesn't exist
-        let path = match config.get("path") {
-            Some(path) => PathBuf::from_str(
-                path.as_str()
-                    .ok_or(format!(
-                        "Expected string for field 'path' for game '{}'",
-                        id
-                    ))?
-                    .trim_end_matches('/'),
-            )
-            .or_else(|error| Err(format!("Could not get 'path' for game '{}': {}", id, error)))?,
-            None => return Err(format!("Could not get 'path' for game '{}'", id)),
+        let mut path = match config.get("path") {
+            Some(value) => match value.as_str() {
+                Some(path) => {
+                    PathBuf::from_str(path).expect("Failed converting string to PathBuf!")
+                }
+                None => {
+                    eprintln!("Failed parsing path string, using default.");
+                    PathBuf::default()
+                }
+            },
+            None => PathBuf::default(),
         };
+        if path == PathBuf::default() {
+            path = match default_path_root {
+                Some(root_path) => root_path.join(&id),
+                None => {
+                    return Err(format!(
+                        "Config for '{}' is missing path value and no default 'game_root_path' found.",
+                        id
+                    ));
+                }
+            };
+        }
 
         let moved_path = PathBuf::from_str(&format!(
             "{}_mod-manager",
@@ -114,23 +137,24 @@ impl Game {
             ))
         })?;
 
-        let mod_root_path = match config.get("mod_root_path") {
-            Some(path) => {
-                let path = PathBuf::from_str(path.as_str().ok_or(format!(
-                    "Expected string for field 'mod_root_path' for game '{}'",
-                    id
-                ))?)
-                .or_else(|error| {
-                    Err(format!(
-                        "Could not get 'mod_root_path' for game '{}': {}",
-                        id, error
-                    ))
-                })?;
-
-                path
-            }
-            None => xdg_dirs.get_data_home(),
+        let mut mod_root_path = match config.get("mod_root_path") {
+            Some(value) => match value.as_str() {
+                Some(path) => {
+                    PathBuf::from_str(path).expect("Failed converting string to PathBuf!")
+                }
+                None => {
+                    eprintln!("Failed parsing mod_root_path string, using default.");
+                    PathBuf::default()
+                }
+            },
+            None => PathBuf::default(),
         };
+        if mod_root_path == PathBuf::default() {
+            mod_root_path = match default_mod_root {
+                Some(root_path) => root_path.join(&id),
+                None => xdg_dirs.get_data_home(),
+            };
+        }
 
         if !path.exists() {
             std::fs::create_dir_all(&path).unwrap();
@@ -855,7 +879,7 @@ mod tests {
     #[test]
     fn mount_path_default_set() {
         let config = get_test_config();
-        let game = Game::from_config("test, game".to_string(), None, config).unwrap();
+        let game = Game::from_config("test, game".to_string(), None, config, None, None).unwrap();
         let mount_string = game.get_mount_string(false, false).unwrap();
 
         let game_path = PathBuf::from(String::from("test/game, asd"))
@@ -893,8 +917,14 @@ mod tests {
     #[test]
     fn mount_path_set_override() {
         let config = get_test_config();
-        let game =
-            Game::from_config("test, game".to_string(), Some("set2".to_string()), config).unwrap();
+        let game = Game::from_config(
+            "test, game".to_string(),
+            Some("set2".to_string()),
+            config,
+            None,
+            None,
+        )
+        .unwrap();
         let mount_string = game.get_mount_string(false, false).unwrap();
 
         let game_path = PathBuf::from(String::from("test/game, asd"))
@@ -922,8 +952,14 @@ mod tests {
     #[test]
     fn mount_path_empty_set_override() {
         let config = get_test_config();
-        let game =
-            Game::from_config("test, game".to_string(), Some("".to_string()), config).unwrap();
+        let game = Game::from_config(
+            "test, game".to_string(),
+            Some("".to_string()),
+            config,
+            None,
+            None,
+        )
+        .unwrap();
         let mount_string = game.get_mount_string(false, false).unwrap();
 
         let game_path = PathBuf::from(String::from("test/game, asd"))
