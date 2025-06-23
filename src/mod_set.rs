@@ -297,6 +297,21 @@ impl ModSet {
 
         envs
     }
+
+    /// Check if the current tree includes a specific mod
+    pub fn contains(&self, id: String) -> bool {
+        if self.mods.contains(&id) {
+            return true;
+        }
+
+        for mod_set in self.mod_sets.values() {
+            if mod_set.contains(id.clone()) {
+                return true;
+            }
+        }
+
+        false
+    }
 }
 
 fn escape_special_mount_chars(string: String) -> String {

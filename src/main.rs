@@ -56,13 +56,13 @@ enum Action {
         path: Option<PathBuf>,
     },
 
-    /// Setup and collect changes for a new mod by making changes to the game
+    /// Setup and collect changes for a new or existing mod by making changes to the game
     #[clap(name = "setup")]
     Setup {
         /// Identifier matching the config file. Can be a new identifier if PATH is also available.
         game: String,
 
-        /// New identifier for the mod.
+        /// New or existing identifier for the mod.
         #[clap(name = "MOD")]
         mod_id: String,
 

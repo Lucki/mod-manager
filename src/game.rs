@@ -532,17 +532,18 @@ impl Game {
     }
 
     ///
-    /// Convenience function to set up a new mod.
+    /// Convenience function to set up a new mod or edit an existing mod.
     ///
     /// It's basically an automated {@link activate} and {@link deactivate} with time to do modifications between.
     /// Afterwards the isolated modifications will be moved to the mod root path with the name ''mod_id''.
     ///
     /// This happens on top of an active set if configured or overridden.
     ///
-    /// @param mod_id Name of the new mod. The changes will end up in path "mod_root_path/''mod_id''".
+    /// @param mod_id Name of the mod. The changes will end up in path "mod_root_path/''mod_id''".
     ///
-    pub fn setup(&self, new_mod_id: String) -> Result<(), String> {
-        let new_mod_path = self.mod_root_path.join(&new_mod_id);
+    pub fn setup(&self, mod_id: String) -> Result<(), String> {
+        let mod_path = self.mod_root_path.join(&mod_id);
+
         let cache_path = self
             .xdg_dirs
             .create_cache_directory("persistent_setup")
@@ -553,12 +554,36 @@ impl Game {
                 ));
             })?;
 
-        if new_mod_path.is_dir() {
+        // Clear cache folder if not empty
+        if !self
+            .xdg_dirs
+            .list_cache_files("persistent_setup")
+            .is_empty()
+        {
+            match fs::remove_dir_all(&cache_path) {
+                Ok(_) => match fs::create_dir_all(&cache_path) {
+                    Ok(_) => (),
+                    Err(err) => return Err(format!("Error creating temporary folder: {}", err)),
+                },
+                Err(err) => return Err(format!("Error removing temporary folder: {}", err)),
+            }
+        }
+
+        // Make sure the mod to setup is not in the active mod tree
+        if self.mod_tree.is_some() && self.mod_tree.as_ref().unwrap().contains(mod_id.clone()) {
             return Err(format!(
-                "Mod '{}' already exists at '{}'",
-                new_mod_id,
-                new_mod_path.display()
+                "The mod to edit is currently active.\nEither add a completely new mod or remove the mod from the active sets, for example by using --set=\"\""
             ));
+        }
+
+        if mod_path.is_dir() {
+            match copy_dir_all(&mod_path, &cache_path) {
+                Ok(_) => match fs::remove_dir_all(&mod_path) {
+                    Ok(_) => println!("Mod folder moved successfully"),
+                    Err(e) => println!("Error removing old mod folder: {}", e),
+                },
+                Err(err) => return Err(format!("Error copying folder: {}", err)),
+            }
         }
 
         self.activate(true, true)?;
@@ -599,7 +624,7 @@ impl Game {
             }
         }
 
-        match copy_dir_all(&cache_path, &new_mod_path) {
+        match copy_dir_all(&cache_path, &mod_path) {
             Ok(_) => {
                 println!("Folder copied successfully");
 
@@ -610,8 +635,8 @@ impl Game {
 
                 println!(
                     "Your mod files are in '{}'. To apply the mod, add '{}' into a mod set for '{}'.",
-                    new_mod_path.display(),
-                    new_mod_id,
+                    mod_path.display(),
+                    mod_id,
                     self.id
                 );
             }

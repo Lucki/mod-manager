@@ -109,6 +109,29 @@ __mod-manager-game-identifier() {
 }
 
 __mod-manager-mod-identifier() {
+    # Get the game identifier
+    # ZSH escapes spaces with a backslash or by encapsulating with quotation marks
+    # we don't need those
+    local game_id=${words[2]//\\ / }
+    game_id=${game_id//\"/}
+
+    local XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+    local config="$XDG_CONFIG_HOME/mod-manager/$game_id.toml"
+
+    if [ -f "$config" ] && command -v tomlq >/dev/null 2>&1; then
+        # Use tomlq to find all mods array members without a set with the same name
+        local output="$(tomlq -r '. as $r | .[] | select(type == "object" and has("mods")) | .mods[] | select(type == "string") | select(in($r) | not)' "$config" | \
+            # escape colons in result, that's a zsh seperator
+            sed 's/:/\\:/g')"
+
+        # Split on line breaks.
+        local -a mods=( "${(f)output}" )
+
+        _values 'Existing mod identifier' $mods
+    else
+        _message 'Existing mod idnetifier'
+    fi
+
     _message 'New mod identifier'
 }
 
@@ -121,6 +144,8 @@ __mod-manager-set-identifier() {
 
     local XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
     local config="$XDG_CONFIG_HOME/mod-manager/$game_id.toml"
+
+    _values 'set name' ''
 
     if [ -f "$config" ] && command -v tomlq >/dev/null 2>&1; then
         # Use tomlq to find all tables containing a mods children

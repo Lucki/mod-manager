@@ -100,7 +100,7 @@ Commands:
   activate    Activate a mod by mounting the OverlayFS inplace
   deactivate  Deactivate an already activated mod by unmounting the OverlayFS
   edit        Edit or create a configuration file for a game with $EDITOR
-  setup       Setup and collect changes for a new mod by making changes to the game
+  setup       Setup and collect changes for a new or existing mod by making changes to the game
   wrap        Wrap an external command in between an activation and deactivation
   help        Print this message or the help of the given subcommand(s)
 
@@ -156,13 +156,13 @@ Options:
 <details><summary>Setup</summary>
 
 ~~~
-Setup and collect changes for a new mod by making changes to the game
+Setup and collect changes for a new or existing mod by making changes to the game
 
 Usage: mod-manager setup [OPTIONS] <GAME> <MOD>
 
 Arguments:
-  <GAME>  Identifier matching the config file. Can be a new identifier if PATH is also available.
-  <MOD>   New identifier for the mod
+  <GAME>  Identifier matching the config file. Can be a new identifier if PATH is also available
+  <MOD>   New or existing identifier for the mod
 
 Options:
       --path <PATH>  Creates a new config file for the game found in PATH
@@ -170,10 +170,10 @@ Options:
   -h, --help         Print help
 ~~~
 
-This directive is a bit special and needs some additional explanation. It is intended for single usage and simplifies the creation process of new configs or mods.
+This directive is a bit special and needs some additional explanation. It simplifies the creation and editing process of new configs and mods.
 
-1. Two possibilities:
-    * The config file doesn't exist yet:
+1. Run `mod-manager setup <game-id> <new-mod-name>`
+1. If the config file doesn't exist yet:
 
         The configured `$EDITOR` opens with a pre-filled template.
 
@@ -181,10 +181,6 @@ This directive is a bit special and needs some additional explanation. It is int
         Upon closing the editor the script continues.
 
         The `--path="/path/to/game/files"` argument is optional and will be inserted in the template mentioned above.
-    * The config file exists already:
-
-        For this directive the only required value in the config file is the `path = "/to/the/game"`.
-1. Run `mod-manager setup <game-id> <new-mod-name>`
 1. Now the changes can be made to the game, e.g. dropping files or folders into the game directory structure or executing an add-on installer.
 1. When done press *Enter*, and you'll find only the changes (basically the plain mod) in the `<mod_root_path>/<mod-name>`<br>
     Defaults to `$XDG_DATA_HOME/<game-id>/<mod-name>`
