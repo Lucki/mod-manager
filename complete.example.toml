@@ -140,8 +140,8 @@ command = [
 [pre_command.environment]
 MY_ENV = "variable2"
 
-# A single command, which has to be referenced previously, see above.
-["my_special_command"]
+# Specific referenced commands are placed in the subtable "commands".
+[commands."my_special_command"]
 
 # Sets if the command should be waited for, before continuing
 # Defaults to true
@@ -157,6 +157,6 @@ command = ["wine", "my-pre-command.exe", "--yes"]
 
 # Additional environment variables for the command as a sub table in the form of:
 # VARIABLE = "value"
-["my_special_command".environment]
+[commands."my_special_command".environment]
 WINEPREFIX = "/path/to/prefix"
 MY_ENV = "variable"

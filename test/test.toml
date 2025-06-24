@@ -42,7 +42,7 @@ command = [
     "gnome-calculator",
 ]
 
-["cmd_test"]
+[commands."cmd_test"]
 command = [
     "echo",
     "special_command_test"

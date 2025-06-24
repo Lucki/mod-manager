@@ -5,10 +5,10 @@ use std::io::{ErrorKind, stdin};
 use std::path::{Path, PathBuf};
 use std::process::Child;
 use std::{fs, str::FromStr, vec};
-use toml::{Value, map::Map};
 use xdg::BaseDirectories;
 
 use crate::ExternalCommand;
+use crate::config::GameConfig;
 use crate::get_xdg_dirs;
 use crate::mod_set::ModSet;
 use crate::overlay::Overlay;
@@ -33,7 +33,7 @@ impl fmt::Display for GameError {
 
 pub struct Game {
     pub id: String,
-    config: Map<String, Value>,
+    config: GameConfig,
     overlay: Overlay,
     writable: bool,
     should_run_pre_commands: bool,
@@ -62,31 +62,16 @@ impl Game {
             .find_config_file(format!("{}.toml", id))
             .ok_or(format!("No config file found for game '{}'", id))?;
 
-        let config = fs::read_to_string(&config_file)
-            .or_else(|error| {
-                return Err(format!(
-                    "Could not read config for game '{}': {}",
-                    id, error
-                ));
-            })?
-            .parse::<Value>()
-            .or_else(|error| {
-                return Err(format!(
-                    "Could not parse config for game '{}': {}",
-                    id, error
-                ));
-            })?
-            .as_table()
-            .ok_or(format!(
-                "Could not parse config for game '{}': Root is not a table",
-                id
-            ))?
-            .to_owned();
+        let config: GameConfig = toml::from_str(
+            &fs::read_to_string(&config_file)
+                .map_err(|error| format!("Could not read config for game '{}': {}", id, error))?,
+        )
+        .unwrap();
 
         return Game::from_config(
             id,
             set_override,
-            config,
+            &config,
             default_path_root,
             default_mod_root,
         );
@@ -95,26 +80,15 @@ impl Game {
     fn from_config(
         id: String,
         set_override: Option<String>,
-        config: toml::Table,
+        config: &GameConfig,
         default_path_root: Option<PathBuf>,
         default_mod_root: Option<PathBuf>,
     ) -> Result<Self, String> {
         let xdg_dirs = Game::get_xdg_dirs(id.clone())?;
 
-        let mut path = match config.get("path") {
-            Some(value) => match value.as_str() {
-                Some(path) => {
-                    PathBuf::from_str(path).expect("Failed converting string to PathBuf!")
-                }
-                None => {
-                    eprintln!("Failed parsing path string, using default.");
-                    PathBuf::default()
-                }
-            },
-            None => PathBuf::default(),
-        };
-        if path == PathBuf::default() {
-            path = match default_path_root {
+        let path = match &config.path {
+            Some(value) => value.clone(),
+            None => match default_path_root {
                 Some(root_path) => root_path.join(&id),
                 None => {
                     return Err(format!(
@@ -122,8 +96,8 @@ impl Game {
                         id
                     ));
                 }
-            };
-        }
+            },
+        };
 
         let moved_path = PathBuf::from_str(&format!(
             "{}_mod-manager",
@@ -137,42 +111,25 @@ impl Game {
             ))
         })?;
 
-        let mut mod_root_path = match config.get("mod_root_path") {
-            Some(value) => match value.as_str() {
-                Some(path) => {
-                    PathBuf::from_str(path).expect("Failed converting string to PathBuf!")
-                }
-                None => {
-                    eprintln!("Failed parsing mod_root_path string, using default.");
-                    PathBuf::default()
-                }
-            },
-            None => PathBuf::default(),
-        };
-        if mod_root_path == PathBuf::default() {
-            mod_root_path = match default_mod_root {
+        let mod_root_path = match &config.mod_root_path {
+            Some(value) => value.clone(),
+            None => match default_mod_root {
                 Some(root_path) => root_path.join(&id),
                 None => xdg_dirs.get_data_home(),
-            };
-        }
+            },
+        };
 
         if !mod_root_path.exists() {
             std::fs::create_dir_all(&mod_root_path).unwrap();
         }
 
-        let writable = match config.get("writable") {
-            Some(value) => value.as_bool().ok_or(format!(
-                "Expected boolean for field 'writable' in game '{}'",
-                id
-            ))?,
+        let writable = match config.writable {
+            Some(value) => value,
             None => false,
         };
 
-        let should_run_pre_commands = match config.get("run_pre_commands") {
-            Some(value) => value.as_bool().ok_or(format!(
-                "Expected boolean for field 'run_pre_commands' in game '{}'",
-                id
-            ))?,
+        let should_run_pre_commands = match config.run_pre_command {
+            Some(value) => value,
             None => false,
         };
 
@@ -181,35 +138,22 @@ impl Game {
                 true => None,
                 false => Some(set),
             },
-            None => match config.get("active") {
-                Some(value) => {
-                    let s = value
-                        .as_str()
-                        .ok_or(format!(
-                            "Expected string for field 'active' in game '{}'",
-                            id
-                        ))?
-                        .to_owned();
-                    match s.is_empty() {
-                        true => None,
-                        false => Some(s),
-                    }
-                }
+            None => match &config.active {
+                Some(value) => match value.is_empty() {
+                    true => None,
+                    false => Some(value.clone()),
+                },
                 None => None,
             },
         };
 
-        // let mut tmp_vec = Vec::<String>::new();
         let mod_tree = match &active_set {
-            Some(a_set) => match config.get(a_set) {
+            Some(a_set) => match config.sets.get(a_set) {
                 Some(value) => Some(ModSet::from_config(
                     &a_set,
-                    value.as_table().ok_or(format!(
-                        "Expected table for field '{}' in game '{}'",
-                        &a_set, id
-                    ))?,
+                    &value,
                     id.clone(),
-                    &config,
+                    config,
                     mod_root_path.clone(),
                     &mut HashSet::new(),
                 )?),
@@ -260,7 +204,7 @@ impl Game {
             id,
             mod_root_path,
             xdg_dirs,
-            config,
+            config: config.to_owned(),
             path,
             moved_path,
             writable,
@@ -792,48 +736,27 @@ impl Game {
             }
         }
 
-        if self.should_run_pre_commands() {
-            match self.config.get("pre_command") {
-                Some(value) => match value.as_array() {
-                    Some(array) => {
-                        for (i, pre_command_table) in array.iter().enumerate() {
-                            let pre_command_table = match pre_command_table.as_table() {
-                                Some(table) => table,
-                                None => {
-                                    println!(
-                                        "Could not get 'pre_command' table for game '{}'",
-                                        self.id
-                                    );
-                                    continue;
-                                }
-                            };
-
-                            let pre_command = match ExternalCommand::from_config(
-                                self.id.clone(),
-                                i.to_string(),
-                                pre_command_table,
-                            ) {
-                                Ok(c) => c,
-                                Err(error) => {
-                                    println!(
-                                        "Failed creating pre command '{}' for game '{}': {}",
-                                        i.to_string(),
-                                        error,
-                                        self.id
-                                    );
-                                    continue;
-                                }
-                            };
-
-                            commands.push(pre_command);
-                        }
+        if self.should_run_pre_commands() && self.config.pre_command.is_some() {
+            for (i, command_config) in self.config.pre_command.as_ref().unwrap().iter().enumerate()
+            {
+                let pre_command = match ExternalCommand::from_config(
+                    self.id.clone(),
+                    i.to_string(),
+                    command_config,
+                ) {
+                    Ok(c) => c,
+                    Err(error) => {
+                        println!(
+                            "Failed creating pre command '{}' for game '{}': {}",
+                            i.to_string(),
+                            error,
+                            self.id
+                        );
+                        continue;
                     }
-                    None => println!("'pre_command' must be an array for game '{}'.", self.id),
-                },
-                None => println!(
-                    "'pre_command' expected to be defined for game '{}' but wasn't.",
-                    self.id
-                ),
+                };
+
+                commands.push(pre_command);
             }
         }
 
@@ -904,7 +827,7 @@ mod tests {
     #[test]
     fn mount_path_default_set() {
         let config = get_test_config();
-        let game = Game::from_config("test, game".to_string(), None, config, None, None).unwrap();
+        let game = Game::from_config("test, game".to_string(), None, &config, None, None).unwrap();
         let mount_string = game.get_mount_string(false, false).unwrap();
 
         let game_path = PathBuf::from(String::from("test/game, asd"))
@@ -945,7 +868,7 @@ mod tests {
         let game = Game::from_config(
             "test, game".to_string(),
             Some("set2".to_string()),
-            config,
+            &config,
             None,
             None,
         )
@@ -980,7 +903,7 @@ mod tests {
         let game = Game::from_config(
             "test, game".to_string(),
             Some("".to_string()),
-            config,
+            &config,
             None,
             None,
         )
@@ -1008,26 +931,15 @@ mod tests {
         assert_eq!(mnt_string, mount_string);
     }
 
-    fn get_test_config() -> toml::map::Map<String, toml::Value> {
+    fn get_test_config() -> GameConfig {
         let config_file = PathBuf::from("./test/test.toml");
         let game_path = PathBuf::from("./test/game, asd");
         let mod_root = PathBuf::from("./test/mod, root");
-        let mut config = fs::read_to_string(&config_file)
-            .unwrap()
-            .parse::<Value>()
-            .unwrap()
-            .as_table()
-            .unwrap()
-            .to_owned();
+        let mut config: GameConfig =
+            toml::from_str(&fs::read_to_string(&config_file).unwrap()).unwrap();
 
-        config.insert(
-            "path".to_string(),
-            toml::Value::try_from(fs::canonicalize(&game_path).unwrap().to_str().unwrap()).unwrap(),
-        );
-        config.insert(
-            "mod_root_path".to_string(),
-            toml::Value::try_from(fs::canonicalize(&mod_root).unwrap().to_str().unwrap()).unwrap(),
-        );
+        config.path = Some(fs::canonicalize(&game_path).unwrap());
+        config.mod_root_path = Some(fs::canonicalize(&mod_root).unwrap());
 
         return config;
     }
