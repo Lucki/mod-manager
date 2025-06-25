@@ -1,6 +1,7 @@
 use clap::Parser;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::vec;
 use std::{env, fs};
 use xdg::BaseDirectories;
@@ -10,7 +11,7 @@ mod external_command;
 mod game;
 mod mod_set;
 mod overlay;
-use crate::config::MainConfig;
+use crate::config::{CommandConfig, MainConfig};
 use crate::external_command::ExternalCommand;
 use crate::game::Game;
 
@@ -150,8 +151,6 @@ fn main() {
             game: game_id,
             path: game_path,
         } => {
-            let mut arguments: Vec<String> = vec![];
-
             // Try getting editor from own config first and then
             // fallback to VISUAL and EDITOR variables
             let editor = match config.editor {
@@ -223,17 +222,17 @@ mods = [
                 }
             }
 
-            arguments.push(editor);
-            arguments.push(
-                game_config_file
-                    .as_os_str()
-                    .to_str()
-                    .expect("Failed converting PathBuf!")
-                    .to_owned(),
-            );
-
-            ExternalCommand::new("editor".to_owned(), arguments, Some(true), None)
-                .run()
+            Command::new(editor)
+                .arg(
+                    game_config_file
+                        .as_os_str()
+                        .to_str()
+                        .expect("Failed converting PathBuf!")
+                        .to_owned(),
+                )
+                .spawn()
+                .unwrap()
+                .wait()
                 .unwrap();
         }
         Action::Setup {
@@ -250,22 +249,18 @@ mods = [
                     game_id
                 );
 
-                let mut arguments: Vec<String> = vec![];
-                arguments.push("mod-manager".to_owned());
-                arguments.push("edit".to_owned());
-                arguments.push(game_id.clone());
+                // Call own edit function and wait until done editing
+                let mut edit_cmd = Command::new("mod-manager");
+                edit_cmd.arg("edit").arg(game_id.clone());
 
                 match game_path {
                     Some(path) => {
-                        arguments.push(format!("--path={}", path.to_string_lossy()));
+                        edit_cmd.arg(format!("--path={}", path.to_string_lossy()));
                     }
                     None => {}
                 }
 
-                // Call own edit function and wait until done editing
-                ExternalCommand::new("edit".to_owned(), arguments, Some(true), None)
-                    .run()
-                    .unwrap();
+                edit_cmd.spawn().unwrap().wait().unwrap();
             }
 
             let game = Game::from_config_file(
@@ -307,7 +302,13 @@ mods = [
             )
             .unwrap();
             match game.wrap(
-                ExternalCommand::new("wrap_command".to_string(), command, Some(true), None),
+                ExternalCommand::from_config(&CommandConfig {
+                    wait_for_exit: Some(true),
+                    delay_after: None,
+                    command: command,
+                    environment: None,
+                })
+                .unwrap(),
                 writable,
             ) {
                 Ok(()) => (),

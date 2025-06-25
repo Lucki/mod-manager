@@ -84,8 +84,8 @@ impl fmt::Display for OverlayError {
 
 pub struct Overlay {
     game_id: String,
-    path: PathBuf,
-    moved_path: PathBuf,
+    pub(crate) path: PathBuf,
+    pub(crate) moved_path: PathBuf,
     cwd: PathBuf,
 }
 

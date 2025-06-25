@@ -3,68 +3,85 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Deserialize, Clone)]
-pub struct MainConfig {
-    pub editor: Option<String>,
-    pub default: Option<DefaultConfig>,
-    pub template: Option<TemplateConfig>,
+pub(crate) struct MainConfig {
+    pub(crate) editor: Option<String>,
+    pub(crate) default: Option<DefaultConfig>,
+    pub(crate) template: Option<TemplateConfig>,
 }
 
 #[derive(Deserialize, Clone)]
-pub struct DefaultConfig {
-    pub game_root_path: Option<PathBuf>,
-    pub mod_root_path: Option<PathBuf>,
+pub(crate) struct DefaultConfig {
+    pub(crate) game_root_path: Option<PathBuf>,
+    pub(crate) mod_root_path: Option<PathBuf>,
 }
 
 #[derive(Deserialize, Clone)]
-pub struct TemplateConfig {
-    pub path: Option<String>,
-    pub mod_root_path: Option<String>,
+pub(crate) struct TemplateConfig {
+    pub(crate) path: Option<String>,
+    pub(crate) mod_root_path: Option<String>,
 }
 
 #[derive(Deserialize, Clone)]
-pub struct GameConfig {
-    pub active: Option<String>,
-    pub path: Option<PathBuf>,
-    pub mod_root_path: Option<PathBuf>,
-    pub writable: Option<bool>,
-    pub run_pre_command: Option<bool>,
-    pub pre_command: Option<Vec<CommandConfig>>,
-    pub commands: Option<SpecificCommandsConfig>,
+pub(crate) struct GameConfig {
+    /// Activate set with Some(set), deactivate overlays with None
+    pub(crate) active: Option<String>,
+    /// Path to game folder
+    pub(crate) path: Option<PathBuf>,
+    /// Path to folder containing mod folders
+    pub(crate) mod_root_path: Option<PathBuf>,
+    /// Mount overlay with an upper dir
+    pub(crate) writable: Option<bool>,
+    /// Run pre commands after mounting and before wrap
+    pub(crate) run_pre_command: Option<bool>,
+    /// List of generic pre commands
+    pub(crate) pre_command: Option<Vec<CommandConfig>>,
+    /// Named pre commands
+    pub(crate) commands: Option<SpecificCommandsConfig>,
 
+    /// List of all available mod sets
     #[serde(flatten)]
-    pub sets: HashMap<String, ModSetConfig>,
+    pub(crate) sets: HashMap<String, ModSetConfig>,
 }
 
 #[derive(Deserialize, Clone)]
-pub struct ModSetConfig {
-    pub run_pre_command: Option<bool>,
-    pub command: Option<String>,
-    pub mods: Vec<String>,
-    pub writable: Option<bool>,
-    pub environment: Option<EnvironmentConfig>,
+pub(crate) struct ModSetConfig {
+    /// Run pre commands after mounting and before wrap
+    pub(crate) run_pre_command: Option<bool>,
+    /// Run specific command after mounting and before wrap
+    pub(crate) command: Option<String>,
+    /// List of names of mods and sets to include
+    pub(crate) mods: Vec<String>,
+    /// Mount overlay with an upper dir
+    pub(crate) writable: Option<bool>,
+    /// Environment to set for wrap
+    pub(crate) environment: Option<EnvironmentConfig>,
 }
 
 #[derive(Deserialize, Clone)]
-pub struct EnvironmentConfig {
+pub(crate) struct EnvironmentConfig {
     #[serde(flatten)]
-    pub variables: HashMap<String, String>,
+    pub(crate) variables: HashMap<String, String>,
 }
 
 #[derive(Deserialize, Clone)]
-pub struct CommandConfig {
-    pub wait_for_exit: Option<bool>,
-    pub delay_after: Option<u64>,
-    pub command: Vec<String>,
-    pub environment: Option<EnvironmentConfig>,
+pub(crate) struct CommandConfig {
+    /// Wait for command to exit before continuing
+    pub(crate) wait_for_exit: Option<bool>,
+    /// Delay following commands for x seconds
+    pub(crate) delay_after: Option<u64>,
+    /// Command argument array
+    pub(crate) command: Vec<String>,
+    /// Call command with these additional environment variables
+    pub(crate) environment: Option<EnvironmentConfig>,
 }
 
 #[derive(Deserialize, Clone)]
-pub struct SpecificCommandsConfig {
+pub(crate) struct SpecificCommandsConfig {
     #[serde(flatten)]
-    pub named_commands: HashMap<String, CommandConfig>,
+    pub(crate) named_commands: HashMap<String, CommandConfig>,
 }
 
-// pub fn parse_toml_table<T>(table: toml::Table) -> T {
+// pub(crate) fn parse_toml_table<T>(table: toml::Table) -> T {
 //     let asd: T = toml::from_str(&toml::to_string(&table).unwrap()).unwrap();
 //     asd
 // }

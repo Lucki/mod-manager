@@ -35,18 +35,13 @@ pub struct Game {
     pub id: String,
     config: GameConfig,
     overlay: Overlay,
-    writable: bool,
-    should_run_pre_commands: bool,
-    mount_options: String,
-    /// Activate set with Some(set), deactivate overlays with None
-    active_set: Option<String>,
+
     /// Can be None when overlays are ignored
     mod_tree: Option<ModSet>,
 
-    path: PathBuf,
-    moved_path: PathBuf,
     xdg_dirs: BaseDirectories,
-    mod_root_path: PathBuf,
+    // default_path_root: Option<PathBuf>,
+    default_mod_root: Option<PathBuf>,
 }
 
 impl Game {
@@ -88,7 +83,7 @@ impl Game {
 
         let path = match &config.path {
             Some(value) => value.clone(),
-            None => match default_path_root {
+            None => match &default_path_root {
                 Some(root_path) => root_path.join(&id),
                 None => {
                     return Err(format!(
@@ -111,28 +106,6 @@ impl Game {
             ))
         })?;
 
-        let mod_root_path = match &config.mod_root_path {
-            Some(value) => value.clone(),
-            None => match default_mod_root {
-                Some(root_path) => root_path.join(&id),
-                None => xdg_dirs.get_data_home(),
-            },
-        };
-
-        if !mod_root_path.exists() {
-            std::fs::create_dir_all(&mod_root_path).unwrap();
-        }
-
-        let writable = match config.writable {
-            Some(value) => value,
-            None => false,
-        };
-
-        let should_run_pre_commands = match config.run_pre_command {
-            Some(value) => value,
-            None => false,
-        };
-
         let active_set = match set_override {
             Some(set) => match set.is_empty() {
                 true => None,
@@ -154,7 +127,6 @@ impl Game {
                     &value,
                     id.clone(),
                     config,
-                    mod_root_path.clone(),
                     &mut HashSet::new(),
                 )?),
                 None => return Err(format!("Field '{}' in game '{}' not found", &a_set, id)),
@@ -162,57 +134,15 @@ impl Game {
             None => None,
         };
 
-        let mut mount_options = "x-gvfs-hide,comment=x-gvfs-hide".to_owned();
-        match &mod_tree {
-            Some(tree) => {
-                let mut s = "".to_owned();
-                tree.get_mount_string(&mut s);
-                let m = escape_special_mount_chars(
-                    moved_path
-                        .to_str()
-                        .ok_or(format!(
-                            "Failed to convert '{}' to a string",
-                            moved_path.display()
-                        ))?
-                        .to_owned(),
-                );
-
-                if !s.is_empty() {
-                    mount_options.push_str(&s);
-                }
-                mount_options.push_str(&format!(",lowerdir+={}", m));
-            }
-            None => {
-                mount_options.push_str(&format!(
-                    ",lowerdir+={}",
-                    escape_special_mount_chars(
-                        moved_path
-                            .to_str()
-                            .ok_or(format!(
-                                "Failed to convert '{}' to a string",
-                                moved_path.display()
-                            ))?
-                            .to_owned()
-                    )
-                ));
-            }
-        };
-
         let overlay = Overlay::new(id.clone(), path.clone(), moved_path.clone());
 
         return Ok(Game {
             id,
-            mod_root_path,
             xdg_dirs,
             config: config.to_owned(),
-            path,
-            moved_path,
-            writable,
-            should_run_pre_commands,
-            active_set,
             mod_tree,
             overlay,
-            mount_options,
+            default_mod_root,
         });
     }
 
@@ -239,7 +169,7 @@ impl Game {
         })? == MountState::Normal
         {
             // Move path to mounted_path
-            fs::rename(&self.path, &self.moved_path).or_else(|e| {
+            fs::rename(&self.overlay.path, &self.overlay.moved_path).or_else(|e| {
                 Err(format!(
                     "Moving game dir for game '{}' failed: {}",
                     &self.id, e
@@ -263,11 +193,11 @@ impl Game {
         }
 
         // Create 'path' directory
-        fs::create_dir_all(&self.path).or_else(|error| {
+        fs::create_dir_all(&self.overlay.path).or_else(|error| {
             return Err(format!(
                 "Failed creating game '{}' directory '{}': {}",
                 self.id,
-                self.path.display(),
+                self.overlay.path.display(),
                 error
             ));
         })?;
@@ -278,14 +208,10 @@ impl Game {
             Err(error) => return Err(format!("Unable to mount game '{}': {}", self.id, error)),
         }
 
-        let pre_commands = match &self.mod_tree {
-            Some(tree) => Some(tree.get_commands()),
-            None => None,
-        };
+        let mut pre_commands: Vec<ExternalCommand> = vec![];
+        self.get_commands(&mut pre_commands);
 
-        if self.should_run_pre_commands()
-            || (pre_commands.is_some() && !pre_commands.as_ref().unwrap().is_empty())
-        {
+        if self.should_run_pre_commands() || !pre_commands.is_empty() {
             self.run_pre_commands(pre_commands);
         }
 
@@ -406,7 +332,7 @@ impl Game {
             })
         })? == MountState::Moved
         {
-            match fs::remove_dir(&self.path) {
+            match fs::remove_dir(&self.overlay.path) {
                 Ok(_) => (),
                 Err(e) => match e.kind() {
                     ErrorKind::NotFound => (),
@@ -416,7 +342,7 @@ impl Game {
                             id: self.id.clone(),
                             message: format!(
                                 "Unable to remove the empty game directory '{}': {}.",
-                                self.path.display(),
+                                self.overlay.path.display(),
                                 e
                             ),
                         });
@@ -424,7 +350,7 @@ impl Game {
                 },
             }
 
-            fs::rename(&self.moved_path, &self.path).or_else(|error| {
+            fs::rename(&self.overlay.moved_path, &self.overlay.path).or_else(|error| {
                 Err(GameError {
                     kind: String::from("fs"),
                     id: self.id.clone(),
@@ -442,7 +368,7 @@ impl Game {
                 id: self.id.clone(),
                 message: format!(
                     "Unable to change current working directory to {}: {}",
-                    self.path.display(),
+                    self.overlay.path.display(),
                     error
                 ),
             })
@@ -486,7 +412,7 @@ impl Game {
     /// @param mod_id Name of the mod. The changes will end up in path "mod_root_path/''mod_id''".
     ///
     pub fn setup(&self, mod_id: String) -> Result<(), String> {
-        let mod_path = self.mod_root_path.join(&mod_id);
+        let mod_path = self.get_mod_root_path().join(&mod_id);
 
         let cache_path = self
             .xdg_dirs
@@ -535,10 +461,10 @@ impl Game {
         let mut line = String::new();
         println!(
             "Make the required changes to the game folder: '{}'\nE.g. installing an addon or placing mod files into the folder structure.\nPress Enter here when done setting up.\n",
-            self.path.display()
+            self.overlay.path.display()
         );
 
-        match open::that(self.path.as_os_str()) {
+        match open::that(self.overlay.path.as_os_str()) {
             Ok(_) => (),
             Err(_) => (),
         }
@@ -597,18 +523,49 @@ impl Game {
     }
 
     fn get_mount_string(&self, writable: bool, is_setup: bool) -> Result<String, String> {
-        let mut mount_string = self.mount_options.clone();
-        if writable
-            || self.writable
-            || self
-                .mod_tree
-                .as_ref()
-                .is_some_and(|t| t.should_be_writable())
-        {
+        let mut mount_string = "x-gvfs-hide,comment=x-gvfs-hide".to_owned();
+        match &self.mod_tree {
+            Some(tree) => {
+                let mut s = "".to_owned();
+                tree.get_mount_string(self.get_mod_root_path(), &mut s)?;
+                let m = escape_special_mount_chars(
+                    self.overlay
+                        .moved_path
+                        .to_str()
+                        .ok_or(format!(
+                            "Failed to convert '{}' to a string",
+                            self.overlay.moved_path.display()
+                        ))?
+                        .to_owned(),
+                );
+
+                if !s.is_empty() {
+                    mount_string.push_str(&s);
+                }
+                mount_string.push_str(&format!(",lowerdir+={}", m));
+            }
+            None => {
+                mount_string.push_str(&format!(
+                    ",lowerdir+={}",
+                    escape_special_mount_chars(
+                        self.overlay
+                            .moved_path
+                            .to_str()
+                            .ok_or(format!(
+                                "Failed to convert '{}' to a string",
+                                self.overlay.moved_path.display()
+                            ))?
+                            .to_owned()
+                    )
+                ));
+            }
+        };
+
+        if writable || self.should_be_writable() {
             let mut persistent_name = "persistent_modless".to_string();
 
-            if self.active_set.is_some() && self.mod_tree.is_some() {
-                persistent_name = format!("{}_persistent", self.active_set.as_ref().unwrap());
+            if self.config.active.is_some() && self.mod_tree.is_some() {
+                persistent_name = format!("{}_persistent", self.config.active.as_ref().unwrap());
             }
 
             if is_setup {
@@ -678,7 +635,7 @@ impl Game {
                     workdir.display()
                 ))?
             );
-        } else if self.active_set.is_none() && self.mod_tree.is_none() {
+        } else if self.mod_tree.is_none() {
             // Creating an immutable OverlayFS with a single folder.
             // OverlayFS can't mount a single folder so we're creating an empty dummy to assist us.
             let dummy = self
@@ -710,8 +667,46 @@ impl Game {
         return Ok(mount_string);
     }
 
+    fn get_commands(&self, command_list: &mut Vec<ExternalCommand>) -> () {
+        match &self.mod_tree {
+            Some(tree) => match &self.config.commands {
+                Some(commands) => tree.get_commands(&commands.named_commands, command_list),
+                None => (),
+            },
+            None => (),
+        };
+    }
+
+    fn get_mod_root_path(&self) -> PathBuf {
+        let mod_root_path = match &self.config.mod_root_path {
+            Some(value) => value.clone(),
+            None => match &self.default_mod_root {
+                Some(root_path) => root_path.join(&self.id),
+                None => self.xdg_dirs.get_data_home(),
+            },
+        };
+
+        if !mod_root_path.exists() {
+            std::fs::create_dir_all(&mod_root_path).unwrap();
+        }
+
+        return mod_root_path;
+    }
+
+    fn should_be_writable(&self) -> bool {
+        if self.config.writable.is_some_and(|b| b == true) {
+            return true;
+        }
+
+        if self.mod_tree.is_some() {
+            return self.mod_tree.as_ref().unwrap().should_be_writable();
+        }
+
+        return false;
+    }
+
     fn should_run_pre_commands(&self) -> bool {
-        if self.should_run_pre_commands {
+        if self.config.run_pre_command.is_some_and(|b| b == true) {
             return true;
         }
 
@@ -722,7 +717,7 @@ impl Game {
         return false;
     }
 
-    fn run_pre_commands(&self, mod_tree_commands: Option<Vec<&ExternalCommand>>) {
+    fn run_pre_commands(&self, mod_tree_commands: Vec<ExternalCommand>) {
         let mut commands: Vec<ExternalCommand> = vec![];
 
         match self.xdg_dirs.create_runtime_directory("") {
@@ -739,11 +734,7 @@ impl Game {
         if self.should_run_pre_commands() && self.config.pre_command.is_some() {
             for (i, command_config) in self.config.pre_command.as_ref().unwrap().iter().enumerate()
             {
-                let pre_command = match ExternalCommand::from_config(
-                    self.id.clone(),
-                    i.to_string(),
-                    command_config,
-                ) {
+                let pre_command = match ExternalCommand::from_config(command_config) {
                     Ok(c) => c,
                     Err(error) => {
                         println!(
@@ -760,8 +751,8 @@ impl Game {
             }
         }
 
-        if mod_tree_commands.is_some() {
-            for command in mod_tree_commands.unwrap() {
+        if !mod_tree_commands.is_empty() {
+            for command in mod_tree_commands {
                 commands.push(command.to_owned());
             }
         }

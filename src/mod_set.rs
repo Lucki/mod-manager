@@ -3,18 +3,15 @@ use std::{
     path::PathBuf,
 };
 
-use crate::ExternalCommand;
 use crate::config::{GameConfig, ModSetConfig};
+use crate::{ExternalCommand, config::CommandConfig};
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ModSet {
-    writable: bool,
-    should_run_pre_commands: bool,
-    command: Option<ExternalCommand>,
-    mods: Vec<String>,
+    /// Config used for this set
+    config: ModSetConfig,
+    /// List of nested mod sets
     mod_sets: HashMap<String, ModSet>,
-    root_path: PathBuf,
-    env: HashMap<String, String>,
 }
 
 impl ModSet {
@@ -23,7 +20,6 @@ impl ModSet {
         set_config: &ModSetConfig,
         game_id: String,
         game_config: &GameConfig,
-        root_path: PathBuf,
         visited: &mut HashSet<String>,
     ) -> Result<Self, String> {
         let mod_array = set_config.mods.clone();
@@ -34,7 +30,6 @@ impl ModSet {
             ));
         };
 
-        let mut added_mods: Vec<String> = vec![];
         let mut mod_sets = HashMap::new();
         for mod_name in mod_array {
             match game_config.sets.get(&mod_name) {
@@ -52,7 +47,6 @@ impl ModSet {
                         &set_config,
                         game_id.clone(),
                         game_config,
-                        root_path.clone(),
                         visited,
                     ) {
                         Ok(set) => set,
@@ -67,140 +61,96 @@ impl ModSet {
                     visited.remove(&mod_name);
                     mod_sets.insert(mod_name.clone(), sub_set);
                 }
+                None => {}
+            }
+        }
+
+        return Ok(ModSet {
+            config: set_config.clone(),
+            mod_sets,
+        });
+    }
+
+    pub fn get_commands(
+        &self,
+        available_commands: &HashMap<String, CommandConfig>,
+        command_list: &mut Vec<ExternalCommand>,
+    ) -> () {
+        match &self.config.command {
+            Some(command_name) => {
+                if !command_list.iter().any(|c| c.get_id() == command_name) {
+                    match available_commands.get(command_name) {
+                        Some(config) => match ExternalCommand::from_config(config) {
+                            Ok(cmd) => command_list.push(cmd),
+                            Err(err) => {
+                                println!("Command creation failed for `{}`: {}", command_name, err)
+                            }
+                        },
+                        None => {
+                            println!("Command `{}` not found in config, ignoring", command_name)
+                        }
+                    }
+                }
+            }
+            None => {}
+        }
+
+        for mod_set in self.mod_sets.values() {
+            mod_set.get_commands(available_commands, command_list);
+        }
+
+        ()
+    }
+
+    pub fn get_mount_string(
+        &self,
+        root_path: PathBuf,
+        mount_string: &mut String,
+    ) -> Result<(), String> {
+        for mod_name in &self.config.mods {
+            match self.mod_sets.get(mod_name) {
+                Some(set) => {
+                    set.get_mount_string(root_path.clone(), mount_string)?;
+                }
                 None => {
                     let mod_path = root_path.join(&mod_name);
                     match mod_path.try_exists() {
                         Ok(exists) => {
                             if !exists {
                                 return Err(format!(
-                                    "Mod set folder `{}` of game `{}` does not exist",
-                                    mod_path.display(),
-                                    game_id
+                                    "Mod set folder `{}` does not exist",
+                                    mod_path.display()
                                 ));
                             }
                         }
                         Err(error) => {
                             return Err(format!(
-                                "Mod set folder `{}` of game `{}` could not be accessed: {}",
+                                "Mod set folder `{}` could not be accessed: {}",
                                 mod_path.display(),
-                                game_id,
                                 error
                             ));
                         }
                     }
-                }
-            }
-            added_mods.push(mod_name);
-        }
 
-        let writable = match set_config.writable {
-            Some(value) => value,
-            None => false,
-        };
-
-        let should_run_pre_commands = match set_config.run_pre_command {
-            Some(value) => value,
-            None => false,
-        };
-
-        let command = match &set_config.command {
-            Some(name) => {
-                let command_config = match &game_config.commands {
-                    Some(named_commands_config) => {
-                        match named_commands_config.named_commands.get(name) {
-                            Some(value) => value,
-                            None => {
-                                return Err(format!(
-                                    "No such command `{}` in game `{}`",
-                                    name, game_id
-                                ));
-                            }
-                        }
-                    }
-                    None => {
-                        return Err(format!(
-                            "Missing specific commands section in `{}`",
-                            game_id
-                        ));
-                    }
-                };
-
-                Some(
-                    ExternalCommand::from_config(
-                        game_id.clone(),
-                        name.to_string(),
-                        &command_config,
-                    )
-                    .or_else(|error| {
-                        return Err(format!(
-                            "Could not parse command `{}` in game `{}`: {}",
-                            name, game_id, error
-                        ));
-                    })?,
-                )
-            }
-            None => None,
-        };
-
-        let env = match &set_config.environment {
-            Some(environment_config) => environment_config.variables.clone(),
-            None => HashMap::new(),
-        };
-
-        return Ok(ModSet {
-            writable,
-            should_run_pre_commands,
-            command,
-            mods: added_mods.clone(),
-            mod_sets,
-            root_path,
-            env,
-        });
-    }
-
-    pub fn get_commands(&self) -> Vec<&ExternalCommand> {
-        let mut list: Vec<&ExternalCommand> = vec![];
-
-        for mod_set in self.mod_sets.values() {
-            list.append(&mut mod_set.get_commands().clone());
-        }
-
-        if let Some(cmd) = self.command.clone() {
-            if !list.iter().any(|c| c.id == cmd.id) {
-                list.push(&self.command.as_ref().unwrap());
-            }
-        }
-
-        return list;
-    }
-
-    pub fn get_mount_string(&self, mount_string: &mut String) -> () {
-        for mod_name in &self.mods {
-            match self.mod_sets.get(mod_name) {
-                Some(set) => {
-                    set.get_mount_string(mount_string);
-                }
-                None => {
-                    let mod_path = escape_special_mount_chars(
-                        self.root_path
-                            .join(&mod_name)
+                    let mod_path_string = escape_special_mount_chars(
+                        mod_path
                             .to_str()
                             .expect("Unable to get string version of PathBuf.")
                             .to_owned(),
                     );
 
-                    if !mount_string.contains(&mod_path) {
-                        mount_string.push_str(&format!(",lowerdir+={}", mod_path));
+                    if !mount_string.contains(&mod_path_string) {
+                        mount_string.push_str(&format!(",lowerdir+={}", mod_path_string));
                     }
                 }
             }
         }
 
-        // *mount_string = mount_string.trim_start_matches(':').to_string();
+        Ok(())
     }
 
     pub fn should_run_pre_commands(&self) -> bool {
-        if self.should_run_pre_commands {
+        if self.config.run_pre_command.is_some_and(|b| b == true) {
             return true;
         }
 
@@ -214,7 +164,7 @@ impl ModSet {
     }
 
     pub fn should_be_writable(&self) -> bool {
-        if self.writable {
+        if self.config.writable.is_some_and(|b| b == true) {
             return true;
         }
 
@@ -229,25 +179,28 @@ impl ModSet {
 
     /// Get a copy of all environment variables defined for this mod set tree
     pub fn get_environment(&self) -> HashMap<String, String> {
-        let mut envs = self.env.clone();
+        let mut env = match &self.config.environment {
+            Some(environment_config) => environment_config.variables.clone(),
+            None => HashMap::new(),
+        };
 
-        for mod_name in &self.mods {
+        for mod_name in &self.config.mods {
             match self.mod_sets.get(mod_name) {
                 Some(set) => {
                     for (k, v) in set.get_environment() {
-                        envs.insert(k, v);
+                        env.insert(k, v);
                     }
                 }
                 None => {}
             }
         }
 
-        envs
+        env
     }
 
     /// Check if the current tree includes a specific mod
     pub fn contains(&self, id: String) -> bool {
-        if self.mods.contains(&id) {
+        if self.config.mods.contains(&id) {
             return true;
         }
 
@@ -294,9 +247,6 @@ mod tests {
         .unwrap();
 
         let set_config = game_config.sets.get("set1").unwrap();
-        let root_path = PathBuf::from(String::from("test/mod, root"))
-            .canonicalize()
-            .unwrap();
 
         assert!(
             ModSet::from_config(
@@ -304,7 +254,6 @@ mod tests {
                 &set_config,
                 "test_game".to_owned(),
                 &game_config,
-                root_path,
                 &mut HashSet::new()
             )
             .is_ok()
@@ -324,9 +273,6 @@ mod tests {
         .unwrap();
 
         let set_config = game_config.sets.get("set1").unwrap();
-        let root_path = PathBuf::from(String::from("test/mod, root"))
-            .canonicalize()
-            .unwrap();
 
         assert!(
             ModSet::from_config(
@@ -334,7 +280,6 @@ mod tests {
                 &set_config,
                 "test_game".to_owned(),
                 &game_config,
-                root_path,
                 &mut HashSet::new()
             )
             .is_err()
@@ -352,9 +297,6 @@ mod tests {
         .unwrap();
 
         let set_config = game_config.sets.get("set1").unwrap();
-        let root_path = PathBuf::from(String::from("test/mod, root"))
-            .canonicalize()
-            .unwrap();
 
         assert!(
             ModSet::from_config(
@@ -362,7 +304,6 @@ mod tests {
                 &set_config,
                 "test_game".to_owned(),
                 &game_config,
-                root_path,
                 &mut HashSet::new()
             )
             .is_err()
@@ -381,21 +322,19 @@ mod tests {
         .unwrap();
 
         let set_config = game_config.sets.get("set1").unwrap();
-        let root_path = PathBuf::from(String::from("test/mod, root"))
-            .canonicalize()
-            .unwrap();
 
-        assert!(
-            ModSet::from_config(
-                "set1",
-                &set_config,
-                "test_game".to_owned(),
-                &game_config,
-                root_path,
-                &mut HashSet::new()
-            )
-            .is_err()
-        );
+        let available_commands: HashMap<String, CommandConfig> = HashMap::new();
+        let mut command_list: Vec<ExternalCommand> = vec![];
+        ModSet::from_config(
+            "set1",
+            &set_config,
+            "test_game".to_owned(),
+            &game_config,
+            &mut HashSet::new(),
+        )
+        .unwrap()
+        .get_commands(&available_commands, &mut command_list);
+        assert!(command_list.is_empty());
     }
 
     #[test]
@@ -426,22 +365,16 @@ mod tests {
         .unwrap();
 
         let set_config = game_config.sets.get("set1").unwrap();
-        let root_path = PathBuf::from(String::from("test/mod, root"))
-            .canonicalize()
-            .unwrap();
         let mod_set = ModSet::from_config(
             "set1",
             &set_config,
             "test_game".to_owned(),
             &game_config,
-            root_path,
             &mut HashSet::new(),
         )
         .unwrap();
 
         let asd_command = ExternalCommand::from_config(
-            "test_game".to_string(),
-            "asd".to_string(),
             game_config
                 .commands
                 .as_ref()
@@ -452,8 +385,6 @@ mod tests {
         )
         .unwrap();
         let dsa_command = ExternalCommand::from_config(
-            "test_game".to_string(),
-            "dsa".to_string(),
             game_config
                 .commands
                 .as_ref()
@@ -465,11 +396,17 @@ mod tests {
         .unwrap();
 
         let mut commands: Vec<&ExternalCommand> = vec![];
-        commands.push(&dsa_command);
         commands.push(&asd_command);
+        commands.push(&dsa_command);
 
-        for (i, command) in mod_set.get_commands().iter().enumerate() {
-            assert_eq!(command.id, commands[i].id);
+        let mut mod_set_commands: Vec<ExternalCommand> = vec![];
+        mod_set.get_commands(
+            &game_config.commands.unwrap().named_commands,
+            &mut mod_set_commands,
+        );
+
+        for (i, command) in mod_set_commands.iter().enumerate() {
+            assert_eq!(command.get_id(), commands[i].get_id());
         }
     }
 
@@ -510,16 +447,18 @@ mod tests {
         );
 
         let mut mount_string = "".to_owned();
-        ModSet::from_config(
-            "set1",
-            &set_config,
-            "test_game".to_owned(),
-            &game_config,
-            root_path,
-            &mut HashSet::new(),
-        )
-        .unwrap()
-        .get_mount_string(&mut mount_string);
+        assert!(
+            ModSet::from_config(
+                "set1",
+                &set_config,
+                "test_game".to_owned(),
+                &game_config,
+                &mut HashSet::new(),
+            )
+            .unwrap()
+            .get_mount_string(root_path, &mut mount_string)
+            .is_ok()
+        );
 
         assert_eq!(mount_string, mnt_string);
     }
