@@ -198,16 +198,14 @@ impl Overlay {
             }
 
             // Game files moved, but original path is empty and not mounted, clean up
-            fs::remove_dir(&self.path).or_else(|error| {
-                return Err(OverlayError {
-                    kind: OverlayErrorKind::Process,
-                    overlay: self.game_id.clone(),
-                    message: format!(
-                        "Failed removing empty directory '{}': {}",
-                        self.path.display(),
-                        error
-                    ),
-                });
+            fs::remove_dir(&self.path).map_err(|error| OverlayError {
+                kind: OverlayErrorKind::Process,
+                overlay: self.game_id.clone(),
+                message: format!(
+                    "Failed removing empty directory '{}': {}",
+                    self.path.display(),
+                    error
+                ),
             })?;
 
             // println!("MountState: moved");
@@ -410,12 +408,10 @@ impl Overlay {
             false => set_current_dir(Path::new("/")),
         };
 
-        result.or_else(|error| {
-            Err(OverlayError {
-                kind: OverlayErrorKind::Process,
-                overlay: self.game_id.clone(),
-                message: format!("Could not change the current working directory: {}", error),
-            })
+        result.map_err(|error| OverlayError {
+            kind: OverlayErrorKind::Process,
+            overlay: self.game_id.clone(),
+            message: format!("Could not change the current working directory: {}", error),
         })
     }
 }

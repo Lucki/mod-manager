@@ -99,12 +99,7 @@ impl Game {
             path.to_str()
                 .ok_or(format!("Failed to parse path {:?}", path))?
         ))
-        .or_else(|error| {
-            Err(format!(
-                "Could not create moved_path for game '{}': {}",
-                id, error
-            ))
-        })?;
+        .map_err(|error| format!("Could not create moved_path for game '{}': {}", id, error))?;
 
         let active_set = match set_override {
             Some(set) => match set.is_empty() {
@@ -148,42 +143,38 @@ impl Game {
 
     pub fn activate(&self, writable: bool, is_setup: bool) -> Result<(), String> {
         // Re-mount in case the mod set has changed
-        if self.overlay.get_current_mounting_state().or_else(|e| {
-            Err(format!(
+        if self.overlay.get_current_mounting_state().map_err(|e| {
+            format!(
                 "Failed validating the mounting state for '{}': {}",
                 e.overlay(),
                 e.message()
-            ))
+            )
         })? == MountState::Mounted
         {
             self.deactivate()
-                .or_else(|e| Err(format!("Error deactivating overlay: {}", e)))?;
+                .map_err(|e| format!("Error deactivating overlay: {}", e))?;
         }
 
-        if self.overlay.get_current_mounting_state().or_else(|e| {
-            Err(format!(
+        if self.overlay.get_current_mounting_state().map_err(|e| {
+            format!(
                 "Failed validating the mounting state for '{}': {}",
                 e.overlay(),
                 e.message()
-            ))
+            )
         })? == MountState::Normal
         {
             // Move path to mounted_path
-            fs::rename(&self.overlay.path, &self.overlay.moved_path).or_else(|e| {
-                Err(format!(
-                    "Moving game dir for game '{}' failed: {}",
-                    &self.id, e
-                ))
-            })?;
+            fs::rename(&self.overlay.path, &self.overlay.moved_path)
+                .map_err(|e| format!("Moving game dir for game '{}' failed: {}", &self.id, e))?;
         }
 
         // Check if we're good to go, panic if not
-        if self.overlay.get_current_mounting_state().or_else(|e| {
-            Err(format!(
+        if self.overlay.get_current_mounting_state().map_err(|e| {
+            format!(
                 "Failed validating the mounting state for '{}': {}",
                 e.overlay(),
                 e.message()
-            ))
+            )
         })? != MountState::Moved
         {
             return Err(format!(
@@ -193,13 +184,13 @@ impl Game {
         }
 
         // Create 'path' directory
-        fs::create_dir_all(&self.overlay.path).or_else(|error| {
-            return Err(format!(
+        fs::create_dir_all(&self.overlay.path).map_err(|error| {
+            format!(
                 "Failed creating game '{}' directory '{}': {}",
                 self.id,
                 self.overlay.path.display(),
                 error
-            ));
+            )
         })?;
 
         let mount_string = self.get_mount_string(writable, is_setup)?;
@@ -278,13 +269,14 @@ impl Game {
             }
         }
 
-        match self.overlay.get_current_mounting_state().or_else(|e| {
-            Err(GameError {
+        match self
+            .overlay
+            .get_current_mounting_state()
+            .map_err(|e| GameError {
                 kind: String::from("overlay"),
                 id: self.id.clone(),
                 message: format!("Error getting current mount state: {}", e),
-            })
-        })? {
+            })? {
             MountState::Normal => {
                 return Ok(());
             }
@@ -324,13 +316,15 @@ impl Game {
             MountState::Moved => {}
         }
 
-        if self.overlay.get_current_mounting_state().or_else(|e| {
-            Err(GameError {
+        if self
+            .overlay
+            .get_current_mounting_state()
+            .map_err(|e| GameError {
                 kind: String::from("overlay"),
                 id: self.id.clone(),
                 message: format!("Error getting current mount state: {}", e),
-            })
-        })? == MountState::Moved
+            })?
+            == MountState::Moved
         {
             match fs::remove_dir(&self.overlay.path) {
                 Ok(_) => (),
@@ -350,28 +344,26 @@ impl Game {
                 },
             }
 
-            fs::rename(&self.overlay.moved_path, &self.overlay.path).or_else(|error| {
-                Err(GameError {
+            fs::rename(&self.overlay.moved_path, &self.overlay.path).map_err(|error| {
+                GameError {
                     kind: String::from("fs"),
                     id: self.id.clone(),
                     message: format!(
                         "Unable to move game files back to it's original location: {}",
                         error
                     ),
-                })
+                }
             })?;
         }
 
-        self.overlay.change_cwd(true).or_else(|error| {
-            Err(GameError {
-                kind: String::from("process"),
-                id: self.id.clone(),
-                message: format!(
-                    "Unable to change current working directory to {}: {}",
-                    self.overlay.path.display(),
-                    error
-                ),
-            })
+        self.overlay.change_cwd(true).map_err(|error| GameError {
+            kind: String::from("process"),
+            id: self.id.clone(),
+            message: format!(
+                "Unable to change current working directory to {}: {}",
+                self.overlay.path.display(),
+                error
+            ),
         })?;
 
         Ok(())
@@ -396,7 +388,7 @@ impl Game {
         }
 
         self.deactivate()
-            .or_else(|e| Err(format!("Error deactivating overlay: {}", e)))?;
+            .map_err(|e| format!("Error deactivating overlay: {}", e))?;
 
         Ok(())
     }
@@ -417,11 +409,11 @@ impl Game {
         let cache_path = self
             .xdg_dirs
             .create_cache_directory("persistent_setup")
-            .or_else(|error| {
-                return Err(format!(
+            .map_err(|error| {
+                format!(
                     "Failed creating 'persistent_setup' for game '{}': {}",
                     self.id, error
-                ));
+                )
             })?;
 
         // Clear cache folder if not empty
@@ -578,36 +570,36 @@ impl Game {
             let upperdir = self
                 .xdg_dirs
                 .create_cache_directory(persistent_name)
-                .or_else(|error| {
-                    return Err(format!(
+                .map_err(|error| {
+                    format!(
                         "Failed creating 'upperdir' for game '{}': {}",
                         self.id, error
-                    ));
+                    )
                 })?;
             let workdir = self
                 .xdg_dirs
                 .create_cache_directory("workdir")
-                .or_else(|error| {
-                    return Err(format!(
+                .map_err(|error| {
+                    format!(
                         "Failed creating 'workdir' for game '{}': {}",
                         self.id, error
-                    ));
+                    )
                 })?;
             self.xdg_dirs
                 .create_cache_directory("workdir/index")
-                .or_else(|error| {
-                    return Err(format!(
+                .map_err(|error| {
+                    format!(
                         "Failed creating 'workdir/index' for game '{}': {}",
                         self.id, error
-                    ));
+                    )
                 })?;
             self.xdg_dirs
                 .create_cache_directory("workdir/work")
-                .or_else(|error| {
-                    return Err(format!(
+                .map_err(|error| {
+                    format!(
                         "Failed creating 'workdir/work' for game '{}': {}",
                         self.id, error
-                    ));
+                    )
                 })?;
 
             match self.overlay.clean_working_directory(&workdir) {
@@ -641,11 +633,11 @@ impl Game {
             let dummy = self
                 .xdg_dirs
                 .create_cache_directory("mod-manager_empty_dummy")
-                .or_else(|error| {
-                    return Err(format!(
+                .map_err(|error| {
+                    format!(
                         "Failed creating game '{}' cache directory: {}",
                         self.id, error
-                    ));
+                    )
                 })?;
 
             mount_string = format!(
@@ -803,7 +795,7 @@ impl Game {
 
     fn get_xdg_dirs(id: String) -> Result<BaseDirectories, String> {
         return BaseDirectories::with_prefix(format!("mod-manager/{}", id))
-            .or_else(|error| return Err(format!("Couldn't get user directories: {}", error)));
+            .map_err(|error| format!("Couldn't get user directories: {}", error));
     }
 }
 
